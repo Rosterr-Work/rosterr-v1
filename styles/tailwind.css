@@ -1,0 +1,446 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+@plugin "@tailwindcss/typography";
+@source "../pages";
+@source "../components";
+@source "../layouts";
+@source "../hooks";
+@source "../utils";
+
+@custom-variant dark (.dark &);
+
+/* One feel for all movement. Every `transition*` utility without its own duration now takes these, so colour changes, hovers and
+   presses all move at the same pace, with the same easing: quick to start, soft to land. `ease-rr` is the same curve for animations. */
+@theme {
+  --default-transition-duration: 180ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-rr: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@theme inline {
+  --font-sans: 'Golos Text', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --color-rosterr: #ff5a36;
+  /* Brand palette (Rosterr brand guidelines v1.0). Use these names instead of writing the hex. */
+  --color-magenta: #ff5a36;
+  --color-magenta-deep: #c2380f; /* Signal Deep: Signal as a text or link colour on light backgrounds */
+  --color-magenta-300: #ff9c86;
+  --color-magenta-200: #ffbdaf;
+  --color-blush: #f6f4ef;
+  --color-ink: #0e1a2b;
+  --color-primary: rgb(var(--group-theme));
+}
+
+/* The greys of the whole app take a trace of the brand's Night (#0e1a2b) instead of neutral grey: dark mode is Night rather than
+   charcoal, and light mode's greys are a little warmer. Lightness is the same as before, so contrast is unchanged or slightly better.
+   Step 900 is Night itself. */
+@theme {
+  --color-zinc-50: #f8f8f9;
+  --color-zinc-100: #f1f1f2;
+  --color-zinc-200: #e2e4e6;
+  --color-zinc-300: #cacdd0;
+  --color-zinc-400: #9fa3aa;
+  --color-zinc-500: #767c86;
+  --color-zinc-600: #565f6b;
+  --color-zinc-700: #3e4855;
+  --color-zinc-800: #263140;
+  --color-zinc-900: #0e1a2b;
+  --color-zinc-950: #08111d;
+}
+
+/* The Rosterr type scale (brand guidelines, Typography > Type scale). Sizes are px at 16px = 1rem; each step carries its own line height,
+   weight and tracking, so `text-h1` is the whole style. Body (16/24) and Small (14/20) are Tailwind's `text-base` and `text-sm`. */
+@theme {
+  --text-display: 4rem;
+  --text-display--line-height: calc(68 / 64);
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.03em;
+  --text-h1: 2.5rem;
+  --text-h1--line-height: calc(44 / 40);
+  --text-h1--font-weight: 700;
+  --text-h1--letter-spacing: -0.02em;
+  --text-h2: 1.75rem;
+  --text-h2--line-height: calc(34 / 28);
+  --text-h2--font-weight: 600;
+  --text-h2--letter-spacing: -0.015em;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: calc(28 / 20);
+  --text-h3--font-weight: 600;
+  --text-h3--letter-spacing: -0.01em;
+  --text-label: 0.75rem;
+  --text-label--line-height: calc(16 / 12);
+  --text-label--font-weight: 600;
+  --text-label--letter-spacing: 0.08em;
+}
+/* Label is set in capitals; Data is Small at weight 500 with tabular figures. */
+.text-label {
+  text-transform: uppercase;
+}
+.text-data {
+  font-size: 0.875rem;
+  line-height: calc(20 / 14);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Workspace accent colours are chosen by each workspace, so text on them and text in them is derived per theme
+   (see utils/theme.ts) rather than assumed to be white or the raw colour. The defaults are for Rosterr Signal. */
+:root {
+  --group-theme: 255 90 54; /* Rosterr Signal until a workspace sets its own (see utils/theme.ts) */
+  --group-theme-on: 28 15 36;
+  --group-theme-text: 219 0 106;
+  --group-theme-text-dark: 255 46 147;
+}
+.text-primary {
+  color: rgb(var(--group-theme-text));
+}
+.dark .text-primary {
+  color: rgb(var(--group-theme-text-dark));
+}
+.bg-primary.text-white,
+.bg-rosterr.text-white {
+  color: rgb(var(--group-theme-on));
+}
+.hover\:text-primary:hover {
+  color: rgb(var(--group-theme-text));
+}
+.dark .hover\:text-primary:hover {
+  color: rgb(var(--group-theme-text-dark));
+}
+
+/* ---- The r loader -----------------------------------------------------------------------------------------------------------------
+   Two r's: the second rises and settles against the first, over and over (see components/brand/RLoader.tsx). */
+@keyframes rr-rise {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-12px);
+  }
+  70% {
+    transform: translateY(2px);
+  }
+}
+.rr-rise {
+  animation: rr-rise 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-rise {
+    animation: none;
+  }
+}
+
+/* ---- Motion -------------------------------------------------------------------------------------------------------------------------
+   A small shared set, so movement feels the same everywhere. `rr-enter` fades and lifts something in; `rr-stagger` does it to each child
+   in turn; `rr-grow` and `rr-podium` draw a bar or a column; `rr-float` is the slow bob of the 404 mark. Buttons sink a little when
+   pressed. All of it is off for people who ask their device for less motion. */
+@keyframes rr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rr-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes rr-podium {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes rr-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes rr-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scaleX(0.7);
+    opacity: 0.18;
+  }
+}
+/* A page fades in; it must not move. An element with a running or held transform animation becomes the container of everything inside it
+   that is `position: fixed`, so a lifting page wrapper would drag every modal and menu out of place. Fading changes no containing block,
+   and `backwards` (not `both`) releases the element the moment the animation ends. */
+.rr-enter {
+  animation: rr-fade 0.28s var(--ease-rr) backwards;
+}
+.rr-stagger > * {
+  animation: rr-fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.rr-stagger > :nth-child(2) { animation-delay: 60ms; }
+.rr-stagger > :nth-child(3) { animation-delay: 120ms; }
+.rr-stagger > :nth-child(4) { animation-delay: 180ms; }
+.rr-stagger > :nth-child(5) { animation-delay: 240ms; }
+.rr-stagger > :nth-child(6) { animation-delay: 300ms; }
+.rr-stagger > :nth-child(n + 7) { animation-delay: 360ms; }
+.rr-grow {
+  transform-origin: left;
+  animation: rr-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rr-podium {
+  transform-origin: bottom;
+  animation: rr-podium 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both;
+}
+.rr-float {
+  animation: rr-float 3.2s ease-in-out infinite;
+}
+.rr-float-shadow {
+  transform-origin: center;
+  animation: rr-shadow 3.2s ease-in-out infinite;
+}
+:where(button, [role="button"]):active:where(:not(:disabled, [aria-disabled="true"])) {
+  transform: scale(0.97);
+}
+:where(button, [role="button"]) {
+  transition-property: transform, background-color, border-color, color, box-shadow, opacity;
+  transition-duration: 0.15s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-enter,
+  .rr-stagger > *,
+  .rr-grow,
+  .rr-podium,
+  .rr-float,
+  .rr-float-shadow {
+    animation: none;
+  }
+  :where(button, [role="button"]):active:where(:not(:disabled, [aria-disabled="true"])) {
+    transform: none;
+  }
+}
+
+/* The step: the last character is raised by half a stem, as the second r is in the logo. It starts level, overshoots a little and settles. */
+@keyframes rr-step {
+  0%,
+  25% {
+    transform: translateY(0);
+  }
+  60% {
+    transform: translateY(calc(var(--step, -0.14em) * 1.45));
+  }
+  80% {
+    transform: translateY(calc(var(--step, -0.14em) * 0.9));
+  }
+  100% {
+    transform: translateY(var(--step, -0.14em));
+  }
+}
+.rr-step {
+  display: inline-block;
+  transform: translateY(var(--step, -0.14em));
+  animation: rr-step 0.9s cubic-bezier(0.3, 0.7, 0.2, 1) 0.2s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-step {
+    animation: none;
+  }
+}
+
+/* ---- Overlays and menus -------------------------------------------------------------------------------------------------------------
+   Dialogs, scrims, drop-down menus and pop-overs used to appear with no movement at all, or each with its own. They now share one entrance:
+   the scrim fades, the panel rises and settles, a menu drops from its button. These match by what the parts are, so a new dialog gets the
+   same behaviour without anyone remembering to add it. Anything already animated by a Headless UI <Transition> (it carries a `transition`
+   class) is left alone. */
+@keyframes rr-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rr-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rr-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+[class~="fixed"][class~="inset-0"][class*="bg-black"]:not([class*="transition"]),
+[class~="fixed"][class~="inset-0"][class*="backdrop-blur"]:not([class*="transition"]) {
+  animation: rr-fade 0.18s var(--ease-rr) both;
+}
+[class~="fixed"][class~="inset-0"][class*="bg-black"]:not([class*="transition"]) > :not([class~="fixed"], [class~="absolute"], [aria-hidden="true"]),
+[id^="headlessui-dialog-panel"]:not([class*="transition"]) {
+  animation: rr-pop 0.22s var(--ease-rr) both;
+}
+/* Only for a menu or panel that has no <Transition> of its own, marked with data-rr-drop. One that has one (the account menu, the workspace
+   switcher) animates itself: this on top of it played two animations at once and the menu jumped. */
+[data-rr-drop][id^="headlessui-menu-items"],
+[data-rr-drop][id^="headlessui-popover-panel"] {
+  animation: rr-drop 0.15s var(--ease-rr) both;
+  transform-origin: top;
+}
+[role="tooltip"] > * {
+  animation: rr-fade 0.12s var(--ease-rr) both;
+}
+details[open] > :not(summary) {
+  animation: rr-fade 0.18s var(--ease-rr) both;
+}
+
+/* Less motion, on request: nothing slides, grows or bounces, and state changes are instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Motion tokens and arrivals used by Wrapped and the dialogs ---------------------------------------------------------------------
+   Kept alongside the shared motion set above, with the same curve as `--ease-rr`. Things you touch answer fast; things that arrive settle. */
+:root {
+  --rr-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rr-fast: 120ms;
+  --rr-base: 180ms;
+  --rr-slow: 320ms;
+}
+@keyframes rr-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes rr-settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rr-settle {
+  animation: rr-settle var(--rr-slow) var(--rr-ease) backwards;
+}
+/* A page's words arriving after a link to another page in the same set (the legal centre): a short rise and fade. */
+.rr-page-in {
+  animation: rr-fade-in 280ms var(--rr-ease) backwards;
+}
+
+/* A dropdown keeps room for its arrow. Utility classes such as px-3 would otherwise set the right padding to 12px and put the arrow on
+   top of the text ("Any rank" cut off). This rule sits outside Tailwind's layers, so it wins over them. */
+select:not([multiple]):not([size]) {
+  padding-right: 2rem;
+}
+
+/* Muted text in dark mode. Many places say text-zinc-500 and never say what it should be in the dark, where that grey is too faint
+   to read on the dark surfaces (about 3:1; 4.5:1 is the minimum). An element that sets its own dark colour keeps it. */
+.dark .text-zinc-500:not([class*="dark:text-"]) {
+  color: var(--color-zinc-400);
+}
+
+/* One checkbox for the whole product, in place of the browser's own. A square with a soft corner; ink when ticked, white in dark mode,
+   with the tick drawn in the opposite colour. It sits in the base layer, so a utility such as `h-4 w-4` or `sr-only` still wins. */
+@layer base {
+  input[type="checkbox"] {
+    appearance: none;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    padding: 0;
+    border: 1.5px solid #a1a1aa;
+    border-radius: 0.3125rem;
+    background-color: #fff;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s, box-shadow 0.12s;
+  }
+  input[type="checkbox"]:hover:not(:disabled) {
+    border-color: var(--color-ink);
+  }
+  input[type="checkbox"]:checked {
+    border-color: var(--color-ink);
+    background-color: var(--color-ink);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.4l2.5 2.5L12 5.4'/%3E%3C/svg%3E");
+  }
+  input[type="checkbox"]:indeterminate {
+    border-color: var(--color-ink);
+    background-color: var(--color-ink);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M4.5 8h7'/%3E%3C/svg%3E");
+  }
+  input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--color-magenta-deep);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+  input[type="checkbox"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .dark input[type="checkbox"] {
+    border-color: #71717a;
+    background-color: transparent;
+  }
+  .dark input[type="checkbox"]:hover:not(:disabled) {
+    border-color: #fff;
+  }
+  .dark input[type="checkbox"]:checked,
+  .dark input[type="checkbox"]:indeterminate {
+    border-color: #fff;
+    background-color: #fff;
+  }
+  .dark input[type="checkbox"]:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230e1a2b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.4l2.5 2.5L12 5.4'/%3E%3C/svg%3E");
+  }
+  .dark input[type="checkbox"]:indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230e1a2b' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M4.5 8h7'/%3E%3C/svg%3E");
+  }
+  @media (forced-colors: active) {
+    input[type="checkbox"] {
+      appearance: auto;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    input[type="checkbox"] {
+      transition: none;
+    }
+  }
+}

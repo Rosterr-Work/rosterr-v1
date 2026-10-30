@@ -1,0 +1,3673 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  groupId               BigInt                   @id @unique
+  groupLogo             String?                  @db.Text
+  groupName             String?
+  lastSynced            DateTime?
+  ownerId               BigInt?
+  batchId               Int?
+  suspendedAt           DateTime?
+  suspendedReason       String?                  @db.Text
+  suspendedByDiscordId  BigInt?
+  /// A priority account: gets a named account manager (Platform → organisation → Priority account), shown in Settings → Support plan
+  /// and set as the Intercom owner of its support contacts (utils/intercomCompanies.ts).
+  priority              Boolean                  @default(false)
+  prioritySince         DateTime?
+  /// The account manager, as an Intercom teammate (their admin id there), with their name and email kept for showing.
+  accountManagerIntercomId String?               @db.VarChar(32)
+  accountManagerName    String?                  @db.VarChar(120)
+  accountManagerEmail   String?                  @db.VarChar(254)
+  accountManagerAvatar  String?                  @db.Text
+  badge                 WorkspaceBadge?
+  /// When the workspace was made. Workspaces older than this column were given the time of their first saved setting.
+  createdAt             DateTime                 @default(now())
+  adjustments           ActivityCorrection[]
+  activityHistory       ActivityPeriodSummary[]
+  activityResets        ActivityPeriodReset[]
+  activitySessions      PlaySession[]
+  allies                Alliance[]
+  policyLinks           PolicyInvite[]
+  quotas                ActivityQuota[]
+  quotaCompletions      QuotaCompletion[]
+  savedViews            StaffView[]
+  sessionTypes          SessionKind[]
+  sessionTags           SessionBadge[]
+  sessionRoleTemplates  SlotTemplate[]
+  sessionRoleCategories SlotTemplateGroup[]
+  stickyAnnouncements   HomeAnnouncement?
+  apiKey                ApiCredential[]
+  config                WorkspaceSetting[]
+  departments           StaffDepartment[]
+  documents             StaffDocument[]
+  inactivityNotices     LeaveNotice[]
+  ranks                 MemberRank[]
+  roles                 StaffRole[]
+  userBook              LogbookEntry[]
+  wallposts             WallPost[]
+  externalServices      ExternalConnection?
+  members               Membership[]
+  discordIntegration    DiscordConnection?
+  bloxlinkIntegration   BloxlinkConnection?
+  playerBans            Ban[]
+  recommendations       StaffRecommendation[]
+  notifications         InboxNotification[]
+  moderationCases       ModerationRecord[]
+  moderationLogs        ModerationHistoryEntry[]
+  moderationTemplates   ModerationTemplate[]
+  documentContainers    DocumentFolder[]
+  subscription          Subscription?
+  staffrIntegration     StaffrIntegration?
+  staffrJobMappings     StaffrJobMapping[]
+  staffrHires           StaffrHire[]
+  jobListings           JobListing[]
+  hiringSettings        HiringSettings?
+  hiringWebhooks        HiringWebhook[]
+  staffrClaim           StaffrClaim?
+  webhookStreams        WebhookStream[]
+  goals                 Goal[]
+  discordBot            DiscordBot?
+  discordChannelPosts   DiscordChannelPost[]
+  tasks                 Task[]
+  customDomain          WorkspaceDomain?
+
+  @@index([createdAt])
+}
+
+model WorkspaceSetting {
+  id               Int       @id @default(autoincrement())
+  key              String
+  value            Json
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspaceGroupId BigInt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+}
+
+model GameThumbnail {
+  placeId    BigInt   @id
+  universeId BigInt?
+  imageUrl   String   @db.Text
+  updatedAt  DateTime @updatedAt
+}
+
+model User {
+  userid                  BigInt                   @id @unique
+  isOwner                 Boolean?
+  registered              Boolean?
+  picture                 String?                  @db.Text
+  username                String?
+  displayName             String?
+  birthdayDay             Int?
+  birthdayMonth           Int?
+  banned                  Boolean                  @default(false)
+  bannedAt                DateTime?
+  bannedBy                String?
+  banReason               String?                  @db.Text
+  /// "Sign out everywhere else" was used at this time: any sign-in older than this (that has no UserSession row yet) is ended.
+  sessionsValidFrom       DateTime?
+  discordId               BigInt?                  @unique
+  discordUsername         String?
+  discordDisplayName      String?
+  discordAvatar           String?                  @db.Text
+  discordEmail            String?
+  discordDmOptOut         Boolean                  @default(false)
+  /// Opted out of marketing email (the mailing list, welcome emails). True until the person ticks the box at sign-up or turns it on in
+  /// Notification settings, so nobody is on the list without choosing it. Support replies are unaffected — this only controls
+  /// Intercom's `unsubscribed_from_emails`.
+  mailingListOptOut       Boolean                  @default(true)
+  /// Said yes to email about things that concern them (a decision on their leave). Off until the person turns it on themselves: a
+  /// manager who types an address into a profile does not switch this on. Separate from the marketing mailing list above.
+  emailNotificationsConsent Boolean                @default(false)
+  /// How many workspaces this person may own, when a platform admin set it; null means the default (utils/workspaceLimit.ts). It applies
+  /// to Rosterr staff too.
+  workspaceLimit          Int?
+  /// The person's own details, entered once and applied in every workspace they are in (the workspace copies on Membership are kept in step
+  /// from here: see utils/account/profile.ts). Only the person edits these; a manager in one workspace cannot change them for all.
+  timezone                String?                  @db.VarChar(64)
+  contactEmail            String?                  @db.VarChar(254)
+  bio                     String?                  @db.VarChar(500)
+  pronouns                String?                  @db.VarChar(40)
+  language                String?                  @db.VarChar(16)
+  /// Who sees the birthday (day and month, never a year): "private" (only them), "managers" or "team" (the default, as before).
+  birthdayVisibility      String                   @default("team") @db.VarChar(10)
+  /// Who sees the email address: "private", "managers" (the default) or "team".
+  emailVisibility         String                   @default("managers") @db.VarChar(10)
+  /// When the person is usually free, once for every workspace: [{ day, from, to }] as on MemberAvailability. A workspace row overrides it.
+  availability            Json?
+  /// When the person last downloaded their own data from Settings, so it can be offered only so often.
+  dataExportedAt          DateTime?
+  pushDevices             PushDevice[]
+  qrLoginCodes            QrLoginCode[]
+  waitlistApplication     WaitlistApplication?
+  pushPreference          PushPreference?
+  notificationSettings    NotificationSettings?
+  staffPassport           StaffPassport?
+  adjustmentsMade         ActivityCorrection[]     @relation("AdjustmentActor")
+  adjustmentsReceived     ActivityCorrection[]     @relation("AdjustmentUser")
+  activityHistory         ActivityPeriodSummary[]
+  activityResets          ActivityPeriodReset[]
+  activitySessions        PlaySession[]
+  policyAcknowledgments   PolicySignoff[]
+  createdPolicyLinks      PolicyInvite[]
+  roleMembers             RoleAssignment[]
+  sessions                WorkspaceSession[]
+  sessionLogsAsActor      SessionEvent[]           @relation("SessionLogActor")
+  sessionLogsAsTarget     SessionEvent[]           @relation("SessionLogTarget")
+  sessionNotes            SessionComment[]
+  allyVisits              AllianceVisit[]
+  apiKey                  ApiCredential[]
+  documents               StaffDocument[]
+  inactivityNotices       LeaveNotice[]
+  ranks                   MemberRank[]
+  sessionsRoles           SessionParticipant[]
+  writtenBooks            LogbookEntry[]           @relation("bookAdmin")
+  book                    LogbookEntry[]           @relation("bookUser")
+  info                    UserCredential?
+  wallPosts               WallPost[]
+  wallPostReactions       WallReaction[]
+  managedMembers          Membership[]             @relation("LineManager")
+  workspaceMemberships    Membership[]
+  Ally                    Alliance[]               @relation("AllianceToUser")
+  roles                   StaffRole[]              @relation("StaffRoleToUser")
+  localViews              StaffView[]              @relation("UserLocalViews")
+  quotaCompletions        QuotaCompletion[]        @relation("UserQuotaCompletions")
+  completedQuotas         QuotaCompletion[]        @relation("CompletedByUser")
+  notifications           InboxNotification[]
+  createdModerationCases  ModerationRecord[]       @relation("CreatedModerationCases")
+  resolvedModerationCases ModerationRecord[]       @relation("ResolvedModerationCases")
+  reportedModerationCases ModerationRecord[]       @relation("ReportedModerationCases")
+  revokedModerationCases  ModerationRecord[]       @relation("RevokedModerationCases")
+  targetModerationCases   ModerationRecord[]       @relation("TargetModerationCases")
+  moderationEvidence      ModerationAttachment[]
+  moderationLogs          ModerationHistoryEntry[]
+  documentContainers      DocumentFolder[]
+
+  @@index([birthdayMonth, birthdayDay])
+}
+
+model UserCredential {
+  userid       BigInt  @id
+  passwordhash String?
+  tfa          String? @db.Text
+  user         User    @relation(fields: [userid], references: [userid])
+}
+
+model QuotaTargetRole {
+  quotaId String        @db.Char(36)
+  roleId  String        @db.Char(36)
+  quota   ActivityQuota @relation(fields: [quotaId], references: [id])
+  role    StaffRole     @relation(fields: [roleId], references: [id])
+
+  @@unique([quotaId, roleId])
+}
+
+model StaffRole {
+  id               String            @id @unique @default(uuid()) @db.Char(36)
+  permissions      Json              @default("[]")
+  isOwnerRole      Boolean?          @default(false)
+  workspaceGroupId BigInt
+  name             String
+  groupRoles       Json              @default("[]")
+  color            String?
+  quotaRoles       QuotaTargetRole[]
+  roleMembers      RoleAssignment[]
+  workspace        Workspace         @relation(fields: [workspaceGroupId], references: [groupId])
+  SessionType      SessionKind[]     @relation("SessionKindToStaffRole")
+  documents        StaffDocument[]   @relation("StaffDocumentToStaffRole")
+  members          User[]            @relation("StaffRoleToUser")
+  containers       DocumentFolder[]  @relation("DocumentFolderToStaffRole")
+}
+
+model RoleAssignment {
+  roleId        String    @db.Char(36)
+  userId        BigInt
+  manuallyAdded Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  role          StaffRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@id([roleId, userId])
+}
+
+model StaffDepartment {
+  id                String                  @id @unique @default(uuid()) @db.Char(36)
+  name              String
+  color             String?
+  workspaceGroupId  BigInt
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  departmentMembers DepartmentAssignment[]
+  quotaDepartments  QuotaTargetDepartment[]
+  workspace         Workspace               @relation(fields: [workspaceGroupId], references: [groupId])
+  SessionType       SessionKind[]           @relation("SessionKindToStaffDepartment")
+  documents         StaffDocument[]         @relation("StaffDepartmentToStaffDocument")
+  containers        DocumentFolder[]        @relation("DocumentFolderToStaffDepartment")
+}
+
+model DepartmentAssignment {
+  departmentId     String          @db.Char(36)
+  workspaceGroupId BigInt
+  userId           BigInt
+  department       StaffDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  workspaceMember  Membership      @relation(fields: [workspaceGroupId, userId], references: [workspaceGroupId, userId], onDelete: Cascade)
+
+  @@id([departmentId, workspaceGroupId, userId])
+}
+
+model QuotaTargetDepartment {
+  quotaId      String          @db.Char(36)
+  departmentId String          @db.Char(36)
+  department   StaffDepartment @relation(fields: [departmentId], references: [id])
+  quota        ActivityQuota   @relation(fields: [quotaId], references: [id])
+
+  @@unique([quotaId, departmentId])
+}
+
+model WallPost {
+  id               Int            @id @default(autoincrement())
+  content          String         @db.Text
+  image            String?        @db.LongText
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  workspaceGroupId BigInt
+  authorId         BigInt
+  author           User           @relation(fields: [authorId], references: [userid])
+  workspace        Workspace      @relation(fields: [workspaceGroupId], references: [groupId])
+  reactions        WallReaction[]
+  /// When the post was pinned to the top of the wall (null: not pinned), and by whom.
+  pinnedAt         DateTime?
+  pinnedBy         BigInt?
+  /// When the author last changed the words (null: never edited).
+  editedAt         DateTime?
+
+  @@index([workspaceGroupId, createdAt(sort: Desc)])
+  @@index([workspaceGroupId, pinnedAt])
+}
+
+model WallReaction {
+  id         Int      @id @default(autoincrement())
+  emoji      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  wallPostId Int
+  userId     BigInt
+  post       WallPost @relation(fields: [wallPostId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@unique([wallPostId, userId, emoji])
+  @@index([wallPostId])
+  @@index([userId])
+}
+
+model HomeAnnouncement {
+  id               Int       @id @default(autoincrement())
+  workspaceGroupId BigInt    @unique
+  title            String
+  subtitle         String?   @db.Text
+  sections         Json
+  editorId         BigInt?
+  editorUsername   String?
+  editorPicture    String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+}
+
+model AuditEntry {
+  id               Int      @id @default(autoincrement())
+  workspaceGroupId BigInt
+  userId           BigInt?
+  action           String
+  entity           String?
+  details          Json?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([workspaceGroupId, createdAt])
+  @@index([workspaceGroupId, userId])
+}
+
+model SessionKind {
+  id                 String             @id @unique @default(uuid()) @db.Char(36)
+  name               String
+  description        String?            @db.Text
+  gameId             BigInt?
+  allowUnscheduled   Boolean
+  workspaceGroupId   BigInt
+  statues            Json
+  slots              Json
+  sessions           WorkspaceSession[]
+  workspace          Workspace          @relation(fields: [workspaceGroupId], references: [groupId])
+  schedule           SessionSchedule[]
+  hostingDepartments StaffDepartment[]  @relation("SessionKindToStaffDepartment")
+  hostingRoles       StaffRole[]        @relation("SessionKindToStaffRole")
+  sessionTags        SessionBadge[]     @relation("SessionBadgeToSessionKind")
+}
+
+model SlotTemplate {
+  id               String             @id @unique @default(uuid()) @db.Char(36)
+  name             String
+  weight           Int                @default(0)
+  categoryId       String?            @db.Char(36)
+  hostRole         String?
+  slots            Int                @default(1)
+  groupRoles       Json               @default("[]")
+  workspaceGroupId BigInt
+  archived         Boolean            @default(false)
+  /// A certification a person has to hold (and have valid) to take this role. Null: none.
+  requiredCertificationId String?     @db.Char(36)
+  createdAt        DateTime           @default(now())
+  category         SlotTemplateGroup? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  workspace        Workspace          @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId])
+  @@index([categoryId])
+}
+
+model SlotTemplateGroup {
+  id               String         @id @unique @default(uuid()) @db.Char(36)
+  name             String
+  weight           Int            @default(0)
+  workspaceGroupId BigInt
+  archived         Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  templates        SlotTemplate[]
+  workspace        Workspace      @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId])
+}
+
+model SessionBadge {
+  id               String             @id @unique @default(uuid()) @db.Char(36)
+  name             String
+  color            String
+  workspaceGroupId BigInt
+  allowedTypes     Json               @default("[]")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  sessions         WorkspaceSession[]
+  workspace        Workspace          @relation(fields: [workspaceGroupId], references: [groupId])
+  sessionTypes     SessionKind[]      @relation("SessionBadgeToSessionKind")
+
+  @@index([workspaceGroupId])
+}
+
+model SessionSchedule {
+  id            String             @id @unique @default(uuid()) @db.Char(36)
+  Days          Json               @default("[]")
+  Hour          Int
+  Minute        Int
+  sessionTypeId String             @db.Char(36)
+  sessions      WorkspaceSession[]
+  sessionType   SessionKind        @relation(fields: [sessionTypeId], references: [id])
+}
+
+model SessionParticipant {
+  userid           BigInt
+  sessionid        String           @db.Char(36)
+  roleID           String
+  slot             Int
+  archiveEndDate   DateTime?
+  archiveStartDate DateTime?
+  archived         Boolean?         @default(false)
+  session          WorkspaceSession @relation(fields: [sessionid], references: [id])
+  user             User             @relation(fields: [userid], references: [userid])
+
+  @@id([userid, sessionid, roleID, slot])
+}
+
+model WorkspaceSession {
+  id               String               @id @unique @default(uuid()) @db.Char(36)
+  name             String?
+  type             String?
+  ownerId          BigInt?
+  date             DateTime
+  startedAt        DateTime?
+  ended            DateTime?
+  sessionTypeId    String               @db.Char(36)
+  scheduleId       String?              @db.Char(36)
+  sessionTagId     String?              @db.Char(36)
+  duration         Int                  @default(30)
+  archiveEndDate   DateTime?
+  archiveStartDate DateTime?
+  archived         Boolean?             @default(false)
+  /// Brought in by the import wizard (Settings > Import): the batch, where it came from ("hyra", "series", "csv") and when. Null: made here.
+  importBatchId    String?   @db.Char(36)
+  importedFrom     String?   @db.VarChar(16)
+  importedAt       DateTime?
+  owner            User?                @relation(fields: [ownerId], references: [userid])
+  schedule         SessionSchedule?     @relation(fields: [scheduleId], references: [id])
+  sessionType      SessionKind          @relation(fields: [sessionTypeId], references: [id])
+  sessionTag       SessionBadge?        @relation(fields: [sessionTagId], references: [id])
+  logs             SessionEvent[]
+  notes            SessionComment[]
+  users            SessionParticipant[]
+  coverRequests    SessionCoverRequest[]
+  coverSwaps       SessionCoverSwap[]
+  attendance       SessionAttendance[]
+
+  @@index([sessionTypeId, date])
+  @@index([importBatchId])
+}
+
+model SessionComment {
+  id        String           @id @unique @default(uuid()) @db.Char(36)
+  sessionId String           @db.Char(36)
+  authorId  BigInt
+  content   String           @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  author    User             @relation(fields: [authorId], references: [userid])
+  session   WorkspaceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model SessionEvent {
+  id        String           @id @unique @default(uuid()) @db.Char(36)
+  sessionId String           @db.Char(36)
+  actorId   BigInt
+  targetId  BigInt?
+  action    String
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  actor     User             @relation("SessionLogActor", fields: [actorId], references: [userid])
+  session   WorkspaceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  target    User?            @relation("SessionLogTarget", fields: [targetId], references: [userid])
+}
+
+/// "Find cover": someone who can't make a session asks a teammate to take their place (host, or a role's slot), see utils/sessions/cover.ts.
+/// The holder stays in the slot until someone takes it. `openKey` is "session:role:slot" while the request is live and NULL once it is closed,
+/// so a slot has at most one live request. `roleId` is "host" for the host. No foreign keys to users: they go with the account explicitly.
+model SessionCoverRequest {
+  id               String             @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  sessionId        String             @db.Char(36)
+  roleId           String             @db.VarChar(64)
+  slot             Int                @default(0)
+  holderId         BigInt // who is in the slot and wants cover
+  createdById      BigInt // the holder, or a manager posting for them
+  note             String?            @db.VarChar(300)
+  status           String             @default("OPEN") @db.VarChar(20) // OPEN | AWAITING_APPROVAL | FILLED | CANCELLED | EXPIRED
+  openKey          String?            @unique @db.VarChar(120)
+  takerId          BigInt? // who is taking it (waiting for approval, or done)
+  swapId           String?            @db.Char(36) // the swap the holder accepted, if it was a swap
+  decidedById      BigInt? // the manager who approved, declined or cancelled
+  closeReason      String?            @db.VarChar(40)
+  closedAt         DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  session          WorkspaceSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  swaps            SessionCoverSwap[]
+
+  @@index([workspaceGroupId, status])
+  @@index([sessionId])
+}
+
+/// A teammate's answer to a cover request: "I'll take yours if you take this one of mine". The holder accepts or declines.
+model SessionCoverSwap {
+  id        String              @id @default(uuid()) @db.Char(36)
+  requestId String              @db.Char(36)
+  offererId BigInt
+  sessionId String              @db.Char(36) // the offerer's session the holder would take
+  roleId    String              @db.VarChar(64)
+  slot      Int                 @default(0)
+  status    String              @default("PENDING") @db.VarChar(20) // PENDING | ACCEPTED | DECLINED | WITHDRAWN | LAPSED
+  createdAt DateTime            @default(now())
+  decidedAt DateTime?
+  request   SessionCoverRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  session   WorkspaceSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, offererId])
+  @@index([sessionId])
+}
+
+model PlaySession {
+  id               String    @id @unique @default(uuid()) @db.Char(36)
+  userId           BigInt
+  active           Boolean
+  startTime        DateTime
+  endTime          DateTime?
+  idleTime         BigInt?
+  workspaceGroupId BigInt
+  messages         Int?
+  universeId       BigInt?
+  sessionMessage   String?   @db.Text
+  archiveEndDate   DateTime?
+  archiveStartDate DateTime?
+  archived         Boolean?  @default(false)
+  user             User      @relation(fields: [userId], references: [userid])
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId, startTime, archived])
+  @@index([workspaceGroupId, active, archived])
+  @@index([userId, workspaceGroupId])
+}
+
+model ApiCredential {
+  id               String    @id @unique
+  name             String
+  // SHA-256 hex digest of the plaintext key. The plaintext is shown once at creation and never stored.
+  key              String    @unique
+  keyHint          String    @default("")
+  lastUsed         DateTime?
+  // Settings v1.10: where the key was last used from (the caller's address and the endpoint it asked for).
+  lastUsedIp       String?
+  lastUsedPath     String?
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime?
+  workspaceGroupId BigInt
+  createdById      BigInt
+  createdBy        User      @relation(fields: [createdById], references: [userid])
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+}
+
+model LeaveNotice {
+  id               String    @id @unique @default(uuid()) @db.Char(36)
+  userId           BigInt
+  startTime        DateTime
+  endTime          DateTime?
+  reason           String    @db.Text
+  approved         Boolean?  @default(false)
+  reviewed         Boolean?  @default(false)
+  revoked          Boolean?  @default(false)
+  workspaceGroupId BigInt
+  reviewComment    String?   @db.Text
+  createdAt        DateTime  @default(now())
+  approvedAt       DateTime?
+  reviewedByUserId BigInt?
+  revokedAt        DateTime?
+  revokedByUserId  BigInt?
+  /// When the person was told their leave is about to start / end (Sessions and Notices v1.7). Null: not yet.
+  startRemindedAt  DateTime?
+  endRemindedAt    DateTime?
+  /// Brought in by the import wizard (Settings > Import): the batch, where it came from ("hyra", "series", "csv") and when. Null: made here.
+  importBatchId    String?   @db.Char(36)
+  importedFrom     String?   @db.VarChar(16)
+  importedAt       DateTime?
+  user             User      @relation(fields: [userId], references: [userid])
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId, endTime, startTime, approved, reviewed])
+  @@index([workspaceGroupId, userId])
+  @@index([importBatchId])
+}
+
+model StaffDocument {
+  id                     String                        @id @unique @default(uuid()) @db.Char(36)
+  name                   String
+  content                Json
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  ownerId                BigInt
+  workspaceGroupId       BigInt
+  acknowledgmentDeadline DateTime?
+  isTrainingDocument     Boolean                       @default(false)
+  requiresAcknowledgment Boolean                       @default(false)
+  acknowledgmentMethod   String?                       @default("signature")
+  acknowledgmentWord     String?
+  assignToEveryone       Boolean                       @default(false)
+  // Documents v1.9: the number of the live version, an unpublished draft kept beside it, and when people were last chased.
+  version                Int                           @default(1)
+  draftName              String?
+  draftContent           Json?
+  draftBy                BigInt?
+  draftUpdatedAt         DateTime?
+  lastChasedAt           DateTime?
+  versions               DocumentVersion[]
+  acknowledgmentHistory  PolicyAcknowledgmentHistory[]
+  acknowledgments        PolicySignoff[]
+  shareableLinks         PolicyInvite[]
+  owner                  User                          @relation(fields: [ownerId], references: [userid])
+  workspace              Workspace                     @relation(fields: [workspaceGroupId], references: [groupId])
+  departments            StaffDepartment[]             @relation("StaffDepartmentToStaffDocument")
+  roles                  StaffRole[]                   @relation("StaffDocumentToStaffRole")
+  containers             DocumentFolder[]              @relation("DocumentFolderToStaffDocument")
+
+  @@index([workspaceGroupId, isTrainingDocument])
+}
+
+model DocumentFolder {
+  id               String            @id @unique @default(uuid()) @db.Char(36)
+  name             String
+  description      String?           @db.Text
+  workspaceGroupId BigInt
+  ownerId          BigInt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  workspace        Workspace         @relation(fields: [workspaceGroupId], references: [groupId])
+  owner            User              @relation(fields: [ownerId], references: [userid])
+  documents        StaffDocument[]   @relation("DocumentFolderToStaffDocument")
+  departments      StaffDepartment[] @relation("DocumentFolderToStaffDepartment")
+  roles            StaffRole[]       @relation("DocumentFolderToStaffRole")
+
+  @@index([workspaceGroupId])
+}
+
+/// A file uploaded for a Policy or a Docs/Guides entry — `document.content`'s {upload: true, attachmentId}
+/// shape points at one of these. Not FK'd to `document.id`: like MailAttachment, the file is uploaded
+/// before the document exists (the create form uploads first, then creates the document referencing the
+/// returned id), so it's a standalone row looked up by id out of the JSON content, same indirection.
+model DocumentAttachment {
+  id               String                  @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  uploadedBy       BigInt
+  filename         String                  @db.VarChar(255)
+  contentType      String                  @db.VarChar(120)
+  size             Int
+  createdAt        DateTime                @default(now())
+  blob             DocumentAttachmentBlob?
+
+  @@index([workspaceGroupId])
+}
+
+model DocumentAttachmentBlob {
+  attachmentId String             @id @db.Char(36)
+  data         Bytes              @db.LongBlob
+  attachment   DocumentAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+}
+
+model LogbookEntry {
+  id               String    @id @unique @default(uuid()) @db.Char(36)
+  userId           BigInt
+  type             String
+  reason           String    @db.Text
+  adminId          BigInt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspaceGroupId BigInt
+  rankAfter        Int?
+  rankBefore       Int?
+  rankNameAfter    String?
+  rankNameBefore   String?
+  redacted         Boolean?  @default(false)
+  redactedAt       DateTime?
+  redactedBy       BigInt?
+  /// Brought in by the import wizard (Settings > Import): the batch, where it came from ("hyra", "series", "csv") and when. Null: made here.
+  importBatchId    String?   @db.Char(36)
+  importedFrom     String?   @db.VarChar(16)
+  importedAt       DateTime?
+  admin            User      @relation("bookAdmin", fields: [adminId], references: [userid])
+  user             User      @relation("bookUser", fields: [userId], references: [userid])
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+  attachments      LogbookAttachment[]
+
+  @@index([importBatchId])
+}
+
+/// A file attached to a logbook entry: a screenshot, a PDF, a statement. Uploaded first (entryId empty, "staged", only its uploader can
+/// open it), then linked when the entry is written. The bytes live in LogbookAttachmentBlob so listing entries never loads a file.
+/// Deleting the entry deletes its files. See utils/logbook/attachments.ts.
+/// When a member is usually free, as weekly windows in their own time zone (the member's profile zone). Used to suggest who could fill a
+/// session's open places. One row per person per workspace; no foreign keys, cleaned up with the workspace and with the account.
+model MemberAvailability {
+  workspaceGroupId BigInt
+  userId           BigInt
+  /// [{ day: 0-6 (Monday is 0), from: "HH:MM", to: "HH:MM" }]
+  windows          Json
+  updatedAt        DateTime @updatedAt
+
+  @@id([workspaceGroupId, userId])
+  @@index([workspaceGroupId])
+}
+
+/// A person's own record of where they have served, which they can share with a link. Nothing is shown unless they turn sharing on,
+/// and only the workspaces they pick appear. Rotating the token ends every old link.
+model StaffPassport {
+  userId             BigInt   @id
+  token              String   @unique @db.Char(32)
+  shared             Boolean  @default(false)
+  /// Workspace group ids (as strings) that appear on the shared passport.
+  workspaces         Json
+  showCertifications Boolean  @default(true)
+  showRecognition    Boolean  @default(true)
+  showAbout          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
+}
+
+/// A mentor and the person they are helping, inside one workspace. Set up by someone with manage_mentoring; either of the two can end it.
+/// No foreign keys on the people: account deletion repoints the person who left to the Deleted User, so the other keeps their record.
+model Mentorship {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  mentorId         BigInt
+  menteeId         BigInt
+  status           String    @default("ACTIVE") @db.VarChar(10) // ACTIVE | ENDED
+  focus            String?   @db.VarChar(300)
+  createdBy        BigInt?
+  createdAt        DateTime  @default(now())
+  endedAt          DateTime?
+
+  @@index([workspaceGroupId, status])
+  @@index([mentorId, status])
+  @@index([menteeId, status])
+}
+
+/// A record of a 1:1, between a person and their line manager or between a mentor and mentee. Only the two of them can read it, and a
+/// note marked private is the author's alone.
+model OneOnOne {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  leaderId         BigInt // the line manager, or the mentor
+  memberId         BigInt
+  kind             String   @db.VarChar(10) // MANAGER | MENTOR
+  authorId         BigInt
+  heldAt           DateTime
+  notes            String   @db.Text
+  privateNotes     String?  @db.Text
+  /// [{ id, text, done, owner: "leader" | "member" }]
+  actions          Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([workspaceGroupId, leaderId, memberId, heldAt])
+  @@index([memberId])
+}
+
+/// Something a person wants to get better at. Theirs to write; their line manager and their mentors can read it.
+model DevelopmentGoal {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  userId           BigInt
+  title            String    @db.VarChar(120)
+  detail           String?   @db.Text
+  targetDate       DateTime?
+  status           String    @default("ACTIVE") @db.VarChar(10) // ACTIVE | DONE | DROPPED
+  doneAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([workspaceGroupId, userId, status])
+}
+
+/// A thank-you from one member to another, inside a workspace. No foreign keys on the people, like MemberAvailability: account deletion
+/// removes what a person received and repoints what they gave to the Deleted User.
+model Recognition {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  fromUserId       BigInt
+  toUserId         BigInt
+  message          String   @db.VarChar(280)
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceGroupId, createdAt])
+  @@index([toUserId, createdAt])
+  @@index([fromUserId, createdAt])
+}
+
+/// A certification a workspace awards (Lead trainer, First aid...). Holding a valid one can be required to take a session role.
+model Certification {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String   @db.VarChar(100)
+  description      String?  @db.Text
+  /// How long an award lasts, in days. Null: it does not expire.
+  validForDays     Int?
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceGroupId])
+}
+
+/// One person holding a certification. Revoked rows are kept (who took it away, and when).
+model CertificationAward {
+  id               String    @id @default(uuid()) @db.Char(36)
+  certificationId  String    @db.Char(36)
+  workspaceGroupId BigInt
+  userId           BigInt
+  awardedById      BigInt
+  awardedAt        DateTime  @default(now())
+  expiresAt        DateTime?
+  note             String?   @db.Text
+  revokedAt        DateTime?
+  revokedById      BigInt?
+
+  @@index([workspaceGroupId, userId])
+  @@index([certificationId])
+}
+
+/// A request to promote someone, made by one person and decided by another (the promotion pipeline). Approving it writes the promotion
+/// in the logbook, which moves the rank through the workspace's ranking service. No foreign keys: it is cleaned up with the workspace
+/// by workspace id, and with an account by utils/user/deleteAccount.ts.
+model PromotionReview {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  /// The person being considered.
+  userId           BigInt
+  requestedById    BigInt
+  /// PENDING, APPROVED (the promotion was made), DECLINED or CANCELLED.
+  status           String    @default("PENDING") @db.VarChar(12)
+  fromRank         Int?
+  toRank           Int?
+  toRankName       String?   @db.VarChar(100)
+  note             String?   @db.Text
+  /// What the readiness checks said when it was asked for.
+  facts            Json?
+  decidedById      BigInt?
+  decidedAt        DateTime?
+  decisionNote     String?   @db.Text
+  createdAt        DateTime  @default(now())
+  /// "promotion", or "demotion" for one an automatic rule suggested.
+  kind             String    @default("promotion") @db.VarChar(10)
+  /// The automatic rule that suggested it (AutoPromotionRule), when a rule did rather than a person. requestedById is then the rule's owner.
+  ruleId           String?   @db.Char(36)
+
+  @@index([workspaceGroupId, status])
+  @@index([workspaceGroupId, userId])
+}
+
+/// An automatic promotion (or demotion) rule: people at one rank who meet its conditions move to the next rank, by themselves or queued
+/// for a manager to approve (the default). It runs once a day as its owner (the admin who last saved it), with their permissions. See
+/// utils/promotion/autoRules.ts and autoService.ts. No foreign keys: removed with the workspace; an owner's account deletion turns it off.
+model AutoPromotionRule {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String   @db.VarChar(100)
+  /// "promotion" or "demotion".
+  kind             String   @db.VarChar(10)
+  /// "queue" (a manager approves) or "auto".
+  mode             String   @default("queue") @db.VarChar(8)
+  enabled          Boolean  @default(true)
+  fromRank         Int
+  toRank           Int
+  toRankName       String?  @db.VarChar(100)
+  /// The checks, all of which must pass (see Conditions in autoRules.ts).
+  conditions       Json
+  ownerId          BigInt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([workspaceGroupId, fromRank, kind])
+  @@index([enabled])
+}
+
+/// One day's run of a workspace's rules, for the "Last run" shown to admins. Which server runs it is decided by a JobClaim
+/// ("auto-promotions:<group>:<day>"). What happened to each person is kept in outcomes.
+model AutoPromotionRun {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  /// The UTC day, "2026-10-20".
+  day              String    @db.VarChar(10)
+  startedAt        DateTime  @default(now())
+  finishedAt       DateTime?
+  moved            Int       @default(0)
+  queued           Int       @default(0)
+  skipped          Int       @default(0)
+  outcomes         Json?
+
+  @@index([workspaceGroupId, startedAt])
+}
+
+model LogbookAttachment {
+  id               String                  @id @default(uuid()) @db.Char(36)
+  entryId          String?                 @db.Char(36)
+  workspaceGroupId BigInt
+  /// The person the logbook is about.
+  userId           BigInt
+  uploadedBy       BigInt
+  filename         String                  @db.VarChar(255)
+  contentType      String                  @db.VarChar(120)
+  size             Int
+  createdAt        DateTime                @default(now())
+  entry            LogbookEntry?           @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  blob             LogbookAttachmentBlob?
+
+  @@index([workspaceGroupId, userId])
+  @@index([entryId, createdAt])
+}
+
+model LogbookAttachmentBlob {
+  attachmentId String            @id @db.Char(36)
+  data         Bytes             @db.LongBlob
+  attachment   LogbookAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+}
+
+model MemberRank {
+  userId           BigInt
+  rankId           BigInt
+  workspaceGroupId BigInt
+  user             User      @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@id([userId, workspaceGroupId])
+}
+
+model ActivityQuota {
+  id                   String                  @id @default(uuid()) @db.Char(36)
+  type                 String
+  value                Int?
+  workspaceGroupId     BigInt
+  name                 String
+  description          String?                 @db.Text
+  sessionType          String?
+  completionType       String?                 @default("auto") // "auto", "user_complete", "manager_signoff"
+  workspace            Workspace               @relation(fields: [workspaceGroupId], references: [groupId])
+  quotaDepartments     QuotaTargetDepartment[]
+  quotaRoles           QuotaTargetRole[]
+  userQuotaCompletions QuotaCompletion[]
+}
+
+model QuotaCompletion {
+  id               String        @id @default(uuid()) @db.Char(36)
+  quotaId          String        @db.Char(36)
+  userId           BigInt
+  workspaceGroupId BigInt
+  completed        Boolean       @default(false)
+  completedAt      DateTime?
+  completedBy      BigInt? // The user who marked it complete (for manager signoff)
+  notes            String?       @db.Text
+  archived         Boolean       @default(false)
+  archiveCycleId   String        @default("active")
+  archiveStartDate DateTime?
+  archiveEndDate   DateTime?
+  quota            ActivityQuota @relation(fields: [quotaId], references: [id], onDelete: Cascade)
+  user             User          @relation("UserQuotaCompletions", fields: [userId], references: [userid], onDelete: Cascade)
+  completedByUser  User?         @relation("CompletedByUser", fields: [completedBy], references: [userid])
+  workspace        Workspace     @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@unique([quotaId, userId, workspaceGroupId, archived, archiveCycleId])
+  @@index([userId, workspaceGroupId])
+  @@index([quotaId])
+}
+
+model Alliance {
+  workspaceGroupId BigInt
+  name             String
+  icon             String          @db.Text
+  groupId          String
+  notes            Json            @default("[]")
+  id               String          @id @unique @default(uuid()) @db.Char(36)
+  discordServer    String?
+  theirReps        Json            @default("[]")
+  workspace        Workspace       @relation(fields: [workspaceGroupId], references: [groupId])
+  allyVisits       AllianceVisit[]
+  reps             User[]          @relation("AllianceToUser")
+}
+
+model AllianceVisit {
+  id           String   @id @unique @default(uuid()) @db.Char(36)
+  allyId       String   @db.Char(36)
+  hostId       BigInt
+  time         DateTime
+  name         String
+  eventType    String   @default("visit")
+  description  String?  @db.Text
+  hostRole     String   @default("host")
+  participants Json     @default("[]")
+  ally         Alliance @relation(fields: [allyId], references: [id])
+  host         User     @relation(fields: [hostId], references: [userid])
+}
+
+model Membership {
+  workspaceGroupId  BigInt
+  userId            BigInt
+  joinDate          DateTime?
+  birthdayDay       Int?
+  birthdayMonth     Int?
+  discordId         String?
+  isAdmin           Boolean?               @default(false)
+  lineManagerId     BigInt?
+  timezone          String?
+  email             String?
+  introMessage      String?                @db.Text
+  trackId           String?
+  trackName         String?
+  artistName        String?
+  artwork           String?                @db.Text
+  previewUrl        String?                @db.Text
+  departmentMembers DepartmentAssignment[]
+  lineManager       User?                  @relation("LineManager", fields: [lineManagerId], references: [userid], onDelete: NoAction, onUpdate: NoAction)
+  user              User                   @relation(fields: [userId], references: [userid])
+  workspace         Workspace              @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@id([workspaceGroupId, userId])
+  @@index([userId])
+  @@index([lineManagerId])
+  @@index([workspaceGroupId, joinDate])
+}
+
+model ActivityCorrection {
+  id               String    @id @default(uuid()) @db.Char(36)
+  userId           BigInt
+  actorId          BigInt
+  workspaceGroupId BigInt
+  minutes          Int
+  reason           String?   @db.Text
+  createdAt        DateTime  @default(now())
+  archiveEndDate   DateTime?
+  archiveStartDate DateTime?
+  archived         Boolean?  @default(false)
+  actor            User      @relation("AdjustmentActor", fields: [actorId], references: [userid])
+  user             User      @relation("AdjustmentUser", fields: [userId], references: [userid])
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([userId])
+  @@index([actorId])
+  @@index([workspaceGroupId])
+  @@index([workspaceGroupId, createdAt, archived])
+}
+
+model ActivityPeriodSummary {
+  id                      String    @id @default(uuid()) @db.Char(36)
+  userId                  BigInt
+  workspaceGroupId        BigInt
+  periodStart             DateTime
+  periodEnd               DateTime
+  minutes                 Int
+  messages                Int
+  sessionsHosted          Int
+  sessionsSecondaryHosted Int       @default(0)
+  sessionsAttended        Int
+  idleTime                Int
+  wallPosts               Int       @default(0)
+  quotaProgress           Json
+  createdAt               DateTime  @default(now())
+  /// Brought in by the import wizard (Settings > Import): the batch, where it came from ("hyra", "series", "csv") and when. Null: made here.
+  importBatchId    String?   @db.Char(36)
+  importedFrom     String?   @db.VarChar(16)
+  importedAt       DateTime?
+  user                    User      @relation(fields: [userId], references: [userid])
+  workspace               Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([userId])
+  @@index([workspaceGroupId])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([importBatchId])
+}
+
+model ActivityPeriodReset {
+  id                  String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId    BigInt
+  resetById           BigInt?
+  resetAt             DateTime  @default(now())
+  previousPeriodStart DateTime?
+  previousPeriodEnd   DateTime?
+  /// "manual" (someone pressed the button) or "scheduled" (the automatic reset). Null on resets from before it was recorded.
+  trigger             String?   @db.VarChar(12)
+  /// What the reset did, as counts: people saved to history, sessions, adjustments, session sign-ups, sessions and quota completions archived.
+  summary             Json?
+  resetBy             User?     @relation(fields: [resetById], references: [userid])
+  workspace           Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId])
+  @@index([resetAt])
+}
+
+model ExternalConnection {
+  id                 Int       @id @default(autoincrement())
+  workspaceGroupId   BigInt    @unique
+  rankingProvider    String?
+  rankingToken       String?   @db.Text
+  rankingWorkspaceId String?
+  robloxApiKey       String?   @db.Text
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId])
+}
+
+enum WorkspaceBadge {
+  VERIFIED
+  PARTNER
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  workspaceGroupId     BigInt             @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  plan                 SubscriptionPlan   @default(FREE)
+  /// ACTIVE by default: a row made before any subscription exists (a checkout that was opened and left) is a Free workspace, not a trial.
+  status               SubscriptionStatus @default(ACTIVE)
+  trialEndsAt          DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  workspace            Workspace          @relation(fields: [workspaceGroupId], references: [groupId])
+}
+
+model StaffView {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String
+  color            String?
+  icon             String?
+  filters          Json
+  columnVisibility Json
+  isLocal          Boolean   @default(false)
+  createdBy        BigInt?
+  createdAt        DateTime  @default(now())
+  order            Int       @default(0)
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+  creator          User?     @relation("UserLocalViews", fields: [createdBy], references: [userid])
+
+  @@index([workspaceGroupId])
+  @@index([createdBy])
+  @@index([workspaceGroupId, isLocal, order])
+}
+
+model PolicySignoff {
+  id             String        @id @default(uuid()) @db.Char(36)
+  userId         BigInt
+  documentId     String        @db.Char(36)
+  acknowledgedAt DateTime      @default(now())
+  ipAddress      String?
+  signature      String?       @db.LongText
+  isRequired     Boolean       @default(false)
+  document       StaffDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [userid])
+
+  @@unique([userId, documentId])
+  @@index([userId])
+  @@index([documentId])
+}
+
+// A past version of a document or policy (Documents v1.9). The live document is `document.version`; each time what people read changes,
+// the one it replaces is kept here under its own number. No foreign key to the author, so deleting an account never blocks.
+model DocumentVersion {
+  id         String        @id @default(uuid()) @db.Char(36)
+  documentId String        @db.Char(36)
+  version    Int
+  name       String
+  content    Json
+  note       String?       @db.Text
+  createdBy  BigInt?
+  createdAt  DateTime      @default(now())
+  document   StaffDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
+// Who had agreed to an earlier version of a policy, kept when a new version asks everyone to agree again (Documents v1.9).
+// PolicyAcknowledgment always means "agreed to the live version"; this is the record of the versions before it.
+model PolicyAcknowledgmentHistory {
+  id              String        @id @default(uuid()) @db.Char(36)
+  documentId      String        @db.Char(36)
+  documentVersion Int
+  userId          BigInt
+  acknowledgedAt  DateTime
+  ipAddress       String?
+  signature       String?       @db.LongText
+  archivedAt      DateTime      @default(now())
+  document        StaffDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, documentVersion])
+  @@index([userId])
+}
+
+model PolicyInvite {
+  id               String        @id @default(uuid()) @db.Char(36)
+  documentId       String        @db.Char(36)
+  workspaceGroupId BigInt
+  name             String
+  description      String?       @db.Text
+  createdById      BigInt
+  createdAt        DateTime      @default(now())
+  expiresAt        DateTime?
+  isActive         Boolean       @default(true)
+  accessCount      Int           @default(0)
+  lastAccessed     DateTime?
+  createdBy        User          @relation(fields: [createdById], references: [userid])
+  document         StaffDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspace        Workspace     @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([documentId])
+  @@index([workspaceGroupId])
+  @@index([createdById])
+}
+
+// LEGACY: the pasted-token Discord integration. Nothing reads it any more except scripts/migrate-discord.mts, which moves it onto the bot
+// (DiscordBot + DiscordChannelPost). Drop it once that has run everywhere.
+model DiscordConnection {
+  id                  String  @id @default(uuid()) @db.Char(36)
+  workspaceGroupId    BigInt  @unique
+  botToken            String  @db.Text
+  guildId             String
+  guildName           String?
+  channelId           String
+  channelName         String?
+  birthdayChannelId   String?
+  birthdayChannelName String?
+  enabledEvents       Json    @default("[]")
+  birthdayEnabled     Boolean @default(false)
+
+  embedTitle     String? @db.Text
+  embedColor     String?
+  embedFooter    String? @db.Text
+  embedThumbnail Boolean @default(true)
+
+  promotionEmbedTitle       String? @db.Text
+  promotionEmbedColor       String?
+  promotionEmbedDescription String? @db.Text
+  promotionEmbedFooter      String? @db.Text
+
+  demotionEmbedTitle       String? @db.Text
+  demotionEmbedColor       String?
+  demotionEmbedDescription String? @db.Text
+  demotionEmbedFooter      String? @db.Text
+
+  warningEmbedTitle       String? @db.Text
+  warningEmbedColor       String?
+  warningEmbedDescription String? @db.Text
+  warningEmbedFooter      String? @db.Text
+
+  terminationEmbedTitle       String? @db.Text
+  terminationEmbedColor       String?
+  terminationEmbedDescription String? @db.Text
+  terminationEmbedFooter      String? @db.Text
+
+  resignationEmbedTitle       String? @db.Text
+  resignationEmbedColor       String?
+  resignationEmbedDescription String? @db.Text
+  resignationEmbedFooter      String? @db.Text
+
+  noticeSubmitEmbedTitle         String? @db.Text
+  noticeSubmitEmbedColor         String?
+  noticeSubmitEmbedDescription   String? @db.Text
+  noticeSubmitEmbedFooter        String? @db.Text
+  noticeApprovalEmbedTitle       String? @db.Text
+  noticeApprovalEmbedColor       String?
+  noticeApprovalEmbedDescription String? @db.Text
+  noticeApprovalEmbedFooter      String? @db.Text
+  noticeDenialEmbedTitle         String? @db.Text
+  noticeDenialEmbedColor         String?
+  noticeDenialEmbedDescription   String? @db.Text
+  noticeDenialEmbedFooter        String? @db.Text
+
+  birthdayEmbedTitle       String? @db.Text
+  birthdayEmbedColor       String?
+  birthdayEmbedDescription String? @db.Text
+
+  isActive      Boolean   @default(true)
+  lastMessageAt DateTime?
+  errorCount    Int       @default(0)
+  lastError     String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@index([workspaceGroupId])
+  @@index([guildId])
+  @@index([channelId])
+}
+
+// LEGACY: the Bloxlink connection. Discord messages now go through the bot to the Discord account each person signed in with; nothing reads
+// this any more. Drop it with DiscordConnection.
+model BloxlinkConnection {
+  id                   String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId     BigInt    @unique
+  apiKey               String    @db.Text
+  discordServerId      String
+  isActive             Boolean   @default(true)
+  notifyPromotion      Boolean   @default(true)
+  notifyDemotion       Boolean   @default(true)
+  notifyWarning        Boolean   @default(true)
+  notifyActivityReview Boolean   @default(false)
+  messageTemplate      Json?
+  lastUsed             DateTime?
+  errorCount           Int       @default(0)
+  lastError            String?   @db.Text
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@index([workspaceGroupId])
+  @@index([discordServerId])
+}
+
+model Ban {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  userId           BigInt
+  reason           String    @db.Text
+  bannedById       BigInt
+  active           Boolean   @default(true)
+  duration         Int?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  unbannedAt       DateTime?
+  unbannedById     BigInt?
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId, userId, active])
+  @@index([workspaceGroupId, active])
+}
+
+model StaffRecommendation {
+  id                  String                       @id @default(uuid()) @db.Char(36)
+  workspaceGroupId    BigInt
+  targetUserId        BigInt
+  targetUsername      String
+  targetPicture       String?                      @db.Text
+  reason              String                       @db.Text
+  status              String                       @default("active")
+  recommendedRankId   Int?
+  recommendedRankName String?
+  createdById         BigInt
+  createdByName       String?
+  editedById          BigInt?
+  editedByName        String?
+  editedAt            DateTime?
+  statusChangedById   BigInt?
+  statusChangedByName String?
+  statusChangedAt     DateTime?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  votes               StaffRecommendationVote[]
+  comments            StaffRecommendationComment[]
+  workspace           Workspace                    @relation(fields: [workspaceGroupId], references: [groupId])
+
+  @@index([workspaceGroupId, status])
+  @@index([workspaceGroupId, createdAt])
+  @@index([targetUserId])
+}
+
+model StaffRecommendationVote {
+  id               String              @id @default(uuid()) @db.Char(36)
+  recommendationId String              @db.Char(36)
+  userId           BigInt
+  createdAt        DateTime            @default(now())
+  recommendation   StaffRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@unique([recommendationId, userId])
+  @@index([recommendationId])
+}
+
+model StaffRecommendationComment {
+  id               String              @id @default(uuid()) @db.Char(36)
+  recommendationId String              @db.Char(36)
+  authorId         BigInt
+  authorName       String?
+  authorPicture    String?             @db.Text
+  content          String              @db.Text
+  image            String?             @db.LongText
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  recommendation   StaffRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([recommendationId, createdAt])
+}
+
+model InboxNotification {
+  id               String    @id @default(uuid()) @db.Char(36)
+  userId           BigInt
+  workspaceGroupId BigInt
+  type             String
+  title            String
+  body             String    @db.Text
+  href             String?   @db.Text
+  read             Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [userid], onDelete: Cascade)
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@index([userId, workspaceGroupId, read])
+  @@index([userId, workspaceGroupId, createdAt])
+}
+
+model ModerationRecord {
+  id               String                 @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  targetUserId     BigInt
+  targetUsername   String?
+  reportedBy       BigInt?
+  createdBy        BigInt
+  reason           String                 @db.Text
+  description      String?                @db.Text
+  status           String                 @default("open")
+  action           String?
+  createdAt        DateTime               @default(now())
+  resolvedAt       DateTime?
+  resolvedBy       BigInt?
+  expiresAt        DateTime?
+  internalNotes    String?                @db.Text
+  publicNote       String?                @db.Text
+  banDuration      Int?
+  isPermanent      Boolean                @default(false)
+  revokedAt        DateTime?
+  revokedBy        BigInt?
+  revokeReason     String?                @db.Text
+  placeIds         Json                   @default("[]")
+  workspace        Workspace              @relation(fields: [workspaceGroupId], references: [groupId])
+  targetUser       User                   @relation("TargetModerationCases", fields: [targetUserId], references: [userid])
+  createdByUser    User                   @relation("CreatedModerationCases", fields: [createdBy], references: [userid])
+  resolvedByUser   User?                  @relation("ResolvedModerationCases", fields: [resolvedBy], references: [userid])
+  reportedByUser   User?                  @relation("ReportedModerationCases", fields: [reportedBy], references: [userid])
+  revokedByUser    User?                  @relation("RevokedModerationCases", fields: [revokedBy], references: [userid])
+  evidence         ModerationAttachment[]
+  appeal           ModerationAppeal?
+
+  @@index([workspaceGroupId, status])
+  @@index([targetUserId, workspaceGroupId])
+  @@index([createdAt])
+}
+
+model ModerationAttachment {
+  id          String           @id @default(uuid()) @db.Char(36)
+  caseId      String           @db.Char(36)
+  uploadedBy  BigInt
+  fileUrl     String           @db.Text
+  fileName    String           @db.Text
+  fileType    String
+  fileSize    Int
+  description String?          @db.Text
+  createdAt   DateTime         @default(now())
+  case        ModerationRecord @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploader    User             @relation(fields: [uploadedBy], references: [userid])
+
+  @@index([caseId])
+  @@index([uploadedBy])
+}
+
+model ModerationHistoryEntry {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  actionBy         BigInt
+  action           String
+  targetUser       BigInt?
+  targetUsername   String?
+  caseId           String?   @db.Char(36)
+  details          Json?
+  createdAt        DateTime  @default(now())
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId])
+  actor            User      @relation(fields: [actionBy], references: [userid])
+
+  @@index([workspaceGroupId, createdAt])
+  @@index([actionBy])
+  @@index([targetUser])
+}
+
+// A saved reason and outcome for a case, so a common case is two taps (Moderation v1.8). No foreign key to the person who made it:
+// deleting their account just blanks createdBy (see utils/user/deleteAccount.ts).
+model ModerationTemplate {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String
+  reason           String    @db.Text
+  description      String?   @db.Text
+  action           String?
+  banSeconds       Int?
+  warningDays      Int?
+  publicNote       String?   @db.Text
+  createdBy        BigInt?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@unique([workspaceGroupId, name])
+  @@index([workspaceGroupId])
+}
+
+// A player's appeal against a case (Moderation v1.8): one per case. status is pending, upheld (the case stands) or overturned (the
+// punishment is taken back). appellantId and decidedBy have no foreign key, so deleting either account never blocks.
+model ModerationAppeal {
+  id               String           @id @default(uuid()) @db.Char(36)
+  caseId           String           @unique @db.Char(36)
+  workspaceGroupId BigInt
+  appellantId      BigInt
+  message          String           @db.Text
+  status           String           @default("pending")
+  decision         String?          @db.Text
+  decidedBy        BigInt?
+  decidedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  case             ModerationRecord @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceGroupId, status])
+  @@index([appellantId])
+}
+
+// ---------------------------------------------------------------------------
+// Platform administration (Rosterr staff). Access is granted by a Super Admin
+// assigning a level here; holding the Discord "Platform Admin" role alone is
+// never enough.
+// ---------------------------------------------------------------------------
+
+enum PlatformLevel {
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+model PlatformStaff {
+  id               String        @id @default(uuid()) @db.Char(36)
+  discordId        BigInt        @unique
+  level            PlatformLevel
+  /// A custom role. When set, what the person may do is the role's list, and `level` is the role's base level (Moderator or Admin).
+  roleId           String?       @db.Char(36)
+  role             PlatformRole? @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  note             String?
+  addedByDiscordId BigInt?
+  lastSeenAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+// A role a Super Admin makes for platform staff: a name and an exact list of what it may do (utils/platform/levels.ts lists them).
+// Never Super Admin, and never able to manage staff or roles. `baseLevel` is where the role ranks and which badge it gets.
+model PlatformRole {
+  id                 String          @id @default(uuid()) @db.Char(36)
+  name               String          @unique @db.VarChar(40)
+  description        String?         @db.VarChar(190)
+  baseLevel          PlatformLevel
+  capabilities       Json
+  createdByDiscordId BigInt?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  staff              PlatformStaff[]
+}
+
+// A sensitive staff action that needs a second, more senior person to approve it before anything happens: a refund
+// or a change of workspace owner. The person who asks can never be the person who approves. See utils/platform/requests.ts.
+model PlatformRequest {
+  id                 String    @id @default(uuid()) @db.Char(36)
+  type               String    @db.VarChar(16) // REFUND | TRANSFER | SUB_CANCEL | SUB_PAUSE | DATA_EXPORT | DATA_DELETE
+  workspaceGroupId   BigInt? // the organisation, for the first four
+  subjectUserId      BigInt? // the person, for the privacy requests
+  payload            Json // REFUND: { chargeId, amountPence, currency }; TRANSFER: { newOwnerId }; SUB_CANCEL: { when }; SUB_PAUSE: { resumeAt }; DATA_*: { username }
+  reason             String    @db.Text
+  status             String    @default("PENDING") @db.VarChar(16) // PENDING | PROCESSING | DONE | FAILED | REJECTED
+  requestedByDiscord BigInt
+  requestedByName    String?
+  decidedByDiscord   BigInt?
+  decidedByName      String?
+  decisionNote       String?   @db.Text
+  resultNote         String?   @db.Text
+  createdAt          DateTime  @default(now())
+  decidedAt          DateTime?
+
+  @@index([status, createdAt])
+  @@index([workspaceGroupId])
+  @@index([subjectUserId])
+}
+
+// Staff-only context on an organisation, so a ticket carries its history. Never shown to the organisation.
+model PlatformNote {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  authorDiscord    BigInt
+  authorName       String?
+  body             String   @db.Text
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceGroupId, createdAt])
+}
+
+// A one-time code a workspace's support contact (the Support permission) gives Rosterr support, so a staff member can
+// look inside the workspace. "access" lets them enter it read-only; "privileged" also lets them make changes in support
+// mode and see its billing, and only the owner or an admin can give one. A code has to be used within 30 minutes, works
+// once, and the access it gives lasts an hour or until the workspace ends it. A Super Admin going in without a code
+// (trust and safety, with a reason) is recorded here too, with `override` set and no code. See utils/workspace/supportCodes.ts.
+model WorkspaceSupportCode {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  codeHash         String    @unique @db.Char(64)
+  scope            String    @db.VarChar(16)
+  note             String?   @db.VarChar(200)
+  createdById      BigInt?
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime
+  usedAt           DateTime?
+  usedByDiscordId  BigInt?
+  usedByName       String?   @db.VarChar(120)
+  grantExpiresAt   DateTime?
+  revokedAt        DateTime?
+  revokedById      BigInt?
+  override         Boolean   @default(false)
+  overrideReason   String?   @db.VarChar(500)
+
+  @@index([workspaceGroupId, createdAt])
+  // Named by hand: the generated name is longer than the 64 characters MySQL allows.
+  @@index([workspaceGroupId, usedByDiscordId, grantExpiresAt], map: "WorkspaceSupportCode_grant_idx")
+}
+
+// A link from an organisation to its live-chat (Intercom) conversation, so staff can jump straight to the ticket.
+model PlatformTicketLink {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  url              String   @db.VarChar(500)
+  label            String?  @db.VarChar(120)
+  addedByDiscord   BigInt
+  addedByName      String?
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceGroupId, createdAt])
+}
+
+model PlatformAuditLog {
+  id             String        @id @default(uuid()) @db.Char(36)
+  actorDiscordId BigInt
+  actorName      String?
+  actorLevel     PlatformLevel
+  action         String
+  targetType     String?
+  targetId       String?
+  details        Json?
+  createdAt      DateTime      @default(now())
+  // Tamper-evidence: each row's hash covers the row before it (see utils/platform/auditChain.ts). Older rows have none.
+  seq            BigInt?       @unique
+  prevHash       String?       @db.Char(64)
+  hash           String?       @db.Char(64)
+
+  @@index([createdAt])
+  @@index([actorDiscordId])
+  @@index([action])
+}
+
+// One row (id 1): where the audit chain currently ends. Locked while a new entry is added so entries line up one after another.
+model PlatformAuditHead {
+  id        Int      @id
+  seq       BigInt   @default(0)
+  hash      String   @db.Char(64)
+  updatedAt DateTime @updatedAt
+}
+
+// A security key or passkey a staff member registered, used to confirm it is really them (utils/platform/passkeys.ts).
+model PlatformPasskey {
+  id           String    @id @default(uuid()) @db.Char(36)
+  discordId    BigInt
+  credentialId String    @unique @db.VarChar(512)
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String?   @db.VarChar(120)
+  deviceType   String?   @db.VarChar(24)
+  backedUp     Boolean   @default(false)
+  name         String    @db.VarChar(60)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([discordId])
+}
+
+// Switches staff can flip in an emergency (sign-ups off, mail off, ...). See utils/platform/switches.ts.
+model PlatformSwitch {
+  key        String   @id @db.VarChar(40)
+  engaged    Boolean  @default(false) // true = the stop is on and the feature is off
+  reason     String?  @db.VarChar(300)
+  changedBy  BigInt?
+  changedAt  DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Abuse reports: submitted by signed-in users about an organisation or a user,
+// worked by platform staff.
+// ---------------------------------------------------------------------------
+
+enum AbuseTargetType {
+  ORGANISATION
+  USER
+}
+
+enum AbuseReportStatus {
+  OPEN
+  IN_REVIEW
+  ACTIONED
+  DISMISSED
+}
+
+model AbuseReport {
+  id                  String            @id @default(uuid()) @db.Char(36)
+  reporterUserId      BigInt
+  targetType          AbuseTargetType
+  targetId            String
+  targetLabel         String?
+  category            String
+  details             String            @db.Text
+  status              AbuseReportStatus @default(OPEN)
+  assignedToDiscordId BigInt?
+  assignedToName      String?
+  resolution          String?           @db.Text
+  resolvedAt          DateTime?
+  resolvedByDiscordId BigInt?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  notes               AbuseReportNote[]
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@index([reporterUserId, createdAt])
+}
+
+// What is kept after a suspended person deletes their account, or before they come back: one-way hashes of their identifiers, with when and
+// why, and nothing else (no name, no email, no Roblox or Discord id). A match at sign-in means "this was suspended". Removed when the
+// suspension is lifted. All the rows of one suspension share `suspensionId`. See utils/suspension/record.ts.
+model SuspensionRecord {
+  id           String   @id @default(uuid()) @db.Char(36)
+  suspensionId String   @db.Char(36)
+  /// ROBLOX, DISCORD or EMAIL.
+  kind         String   @db.VarChar(8)
+  hash         String   @db.Char(64)
+  reasonCode   String?  @db.VarChar(40)
+  decidedBy    String?  @db.VarChar(40)
+  createdAt    DateTime @default(now())
+
+  @@unique([kind, hash])
+  @@index([suspensionId])
+}
+
+enum AppealStatus {
+  PENDING
+  AWAITING_SECOND
+  ESCALATED
+  APPROVED
+  DENIED
+}
+
+// Someone asking for a suspension to be reconsidered. Two different staff members have to agree before anything changes: the first
+// records a decision, a second confirms it (or disagrees, which sends it to a Super Admin). See utils/appeals.ts.
+model Appeal {
+  id                     String       @id @default(uuid()) @db.Char(36)
+  subjectType            AbuseTargetType
+  subjectId              String
+  /// The reference from the email they were sent: the start of the report's id.
+  reportRef              String       @db.VarChar(16)
+  email                  String       @db.VarChar(190)
+  message                String       @db.Text
+  status                 AppealStatus @default(PENDING)
+  firstDecision          String?      @db.VarChar(8)
+  firstReviewerDiscordId BigInt?
+  firstReviewerName      String?
+  firstNote              String?      @db.Text
+  firstAt                DateTime?
+  finalDecision          String?      @db.VarChar(8)
+  finalReviewerDiscordId BigInt?
+  finalReviewerName      String?
+  finalNote              String?      @db.Text
+  decidedAt              DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@index([status, createdAt])
+  @@index([subjectType, subjectId])
+}
+
+// Work that must happen once even when several servers run it, or Stripe delivers an event twice (utils/jobClaim.ts): the row's key is
+// the claim, held until expiresAt. "abuse-scan:run", "abuse-scan:owner:<userid>:<day>", "stripe-event:<event id>",
+// "card-expiry:<customer>:<card>:<year-month>".
+model JobClaim {
+  key       String   @id @db.VarChar(191)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model AbuseReportNote {
+  id              String      @id @default(uuid()) @db.Char(36)
+  reportId        String      @db.Char(36)
+  authorDiscordId BigInt
+  authorName      String?
+  body            String      @db.Text
+  createdAt       DateTime    @default(now())
+  report          AbuseReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Staffr integration: a workspace links one Staffr group with an API key and
+// reviews that group's job applications from inside Rosterr.
+// ---------------------------------------------------------------------------
+
+model StaffrIntegration {
+  workspaceGroupId       BigInt    @id
+  apiKeyEncrypted        String    @db.Text
+  keyHint                String
+  staffrGroupId          String
+  staffrGroupName        String
+  staffrGroupSlug        String
+  scopes                 Json
+  isActive               Boolean   @default(true)
+  connectedById          BigInt
+  connectedAt            DateTime  @default(now())
+  lastCheckedAt          DateTime?
+  lastError              String?   @db.Text
+  webhookId              String?
+  webhookSecretEncrypted String?   @db.Text
+  webhookLastEventAt     DateTime?
+  updatedAt              DateTime  @updatedAt
+  workspace              Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Hiring pipeline: an accepted Staffr application becomes a "hire" that a manager
+// onboards (rank in the Roblox group, logbook entry, checklist).
+// ---------------------------------------------------------------------------
+
+enum HireStatus {
+  READY
+  ONBOARDED
+  DISMISSED
+}
+
+/// Per Staffr job: which Roblox group role the hire is ranked into and the onboarding checklist.
+model StaffrJobMapping {
+  workspaceGroupId BigInt
+  staffrJobId      String
+  jobTitle         String
+  robloxRoleId     BigInt?
+  autoOnboard      Boolean   @default(false)
+  onboardingItems  Json
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@id([workspaceGroupId, staffrJobId])
+}
+
+model StaffrHire {
+  id                  String           @id @default(uuid()) @db.Char(36)
+  workspaceGroupId    BigInt
+  staffrApplicationId String
+  staffrJobId         String?
+  jobTitle            String
+  department          String?
+  robloxUserId        BigInt?
+  robloxUsername      String?
+  discordId           String?
+  status              HireStatus       @default(READY)
+  acceptedAt          DateTime
+  lastError           String?          @db.Text
+  handledById         BigInt?
+  handledAt           DateTime?
+  summary             String?          @db.Text
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  workspace           Workspace        @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+  tasks               OnboardingTask[]
+
+  @@unique([workspaceGroupId, staffrApplicationId])
+  @@index([workspaceGroupId, status])
+}
+
+model OnboardingTask {
+  id          String     @id @default(uuid()) @db.Char(36)
+  hireId      String     @db.Char(36)
+  position    Int
+  title       String     @db.Text
+  description String?    @db.Text
+  done        Boolean    @default(false)
+  doneAt      DateTime?
+  doneById    BigInt?
+  hire        StaffrHire @relation(fields: [hireId], references: [id], onDelete: Cascade)
+
+  @@index([hireId, position])
+}
+
+// ---------------------------------------------------------------------------
+// Hiring (what was Staffr): a workspace's job listings, the applications they get, and the
+// team's review of them. See docs/staffr-merge.md. No foreign keys on people (like the other newer
+// tables): an account's deletion is handled in utils/user/deleteAccount.ts. `legacyId` is the Staffr id a
+// row was imported from, so an import can be run again without duplicating it.
+// ---------------------------------------------------------------------------
+
+model JobListing {
+  id               String           @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  title            String           @db.VarChar(120)
+  department       String           @db.VarChar(80)
+  description      String           @db.Text
+  requirements     String           @db.Text
+  /// VOLUNTEER | PAID | CONTRACT
+  type             String           @default("VOLUNTEER") @db.VarChar(10)
+  /// DRAFT | OPEN | CLOSED | PAUSED
+  status           String           @default("DRAFT") @db.VarChar(10)
+  requireDiscord   Boolean          @default(false)
+  closesAt         DateTime?
+  maxApplications  Int?
+  createdBy        BigInt?
+  /// Taken off the public board and careers pages by Rosterr's platform staff (a report, say). The workspace still sees it and is told why.
+  hiddenAt         DateTime?
+  hiddenReason     String?          @db.VarChar(300)
+  hiddenBy         BigInt?
+  /// PUBLIC (the board and careers page) | MEMBERS (only people in the workspace see it: an internal job)
+  visibility       String           @default("PUBLIC") @db.VarChar(8)
+  /// Rules that check each applicant as they apply (utils/hiring/screening.ts): null for none. A Pro feature.
+  screening        Json?
+  legacyId         String?          @unique @db.VarChar(40)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  workspace        Workspace        @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+  questions        JobQuestion[]
+  applications     JobApplication[]
+  referrals        JobReferral[]
+
+  @@index([workspaceGroupId, status])
+  @@index([status, closesAt])
+}
+
+model JobQuestion {
+  id          String     @id @default(uuid()) @db.Char(36)
+  listingId   String     @db.Char(36)
+  text        String     @db.VarChar(300)
+  placeholder String?    @db.VarChar(200)
+  /// TEXT | TEXTAREA | SELECT | CHECKBOX | ROBLOX_USERNAME
+  type        String     @default("TEXTAREA") @db.VarChar(20)
+  required    Boolean    @default(true)
+  position    Int        @default(0)
+  options     Json
+  legacyId    String?    @unique @db.VarChar(40)
+  listing     JobListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  answers     JobAnswer[]
+
+  @@index([listingId, position])
+}
+
+model JobApplication {
+  id          String                  @id @default(uuid()) @db.Char(36)
+  listingId   String                  @db.Char(36)
+  /// The applicant's Roblox user id (a Rosterr account).
+  applicantId BigInt
+  /// Their Roblox username when they applied, so the application still reads right after a rename or if the account is gone.
+  applicantName String?               @db.VarChar(100)
+  /// PENDING | REVIEWING | ACCEPTED | REJECTED | WITHDRAWN
+  status      String                  @default("PENDING") @db.VarChar(10)
+  /// What the reviewing team wants the applicant to be told, or its own note: see utils/hiring.
+  notes       String?                 @db.Text
+  reviewedAt  DateTime?
+  reviewedBy  BigInt?
+  canReapply  Boolean                 @default(false)
+  reapplyAfter DateTime?
+  assigneeId  BigInt?
+  /// What the job's screening rules found when they applied: { at, action, failed: [{ rule, reviewer, applicant }] }. Null when nothing was found or checked.
+  screening   Json?
+  /// The member who referred them (JobReferral), when they did.
+  referredBy  BigInt?
+  /// The staff record they chose to show with this application (utils/passport): a snapshot taken when they applied. Null if they showed none.
+  passport    Json?
+  legacyId    String?                 @unique @db.VarChar(40)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  listing     JobListing              @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  answers     JobAnswer[]
+  comments    JobApplicationComment[]
+  ratings     JobApplicationRating[]
+  interviews  JobInterview[]
+
+  @@unique([applicantId, listingId])
+  @@index([listingId, status])
+  @@index([assigneeId])
+}
+
+model JobAnswer {
+  id            String         @id @default(uuid()) @db.Char(36)
+  applicationId String         @db.Char(36)
+  questionId    String         @db.Char(36)
+  value         String         @db.Text
+  /// What the AI-writing detectors said about this answer (utils/hiring/aiCheckRules.ts): { at, results: [{ id, score }], average, spread }, or { at, skipped }. Null when it wasn't checked.
+  aiCheck       Json?
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  question      JobQuestion    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+/// A member suggesting someone for a job: they are told, and when the person applies the application records who referred them. One per person per job.
+model JobReferral {
+  id           String     @id @default(uuid()) @db.Char(36)
+  listingId    String     @db.Char(36)
+  referrerId   BigInt
+  /// The Roblox user id of the person suggested.
+  referredId   BigInt
+  referredName String?    @db.VarChar(100)
+  note         String?    @db.VarChar(300)
+  createdAt    DateTime   @default(now())
+  /// When they applied.
+  appliedAt    DateTime?
+  listing      JobListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, referredId])
+  @@index([referrerId, createdAt])
+  @@index([referredId])
+}
+
+/// An interview: a reviewer offers some times, the applicant picks one, both are reminded. At most one is live (OFFERED or CONFIRMED) per application.
+model JobInterview {
+  id              String         @id @default(uuid()) @db.Char(36)
+  applicationId   String         @db.Char(36)
+  /// The reviewer who will do it.
+  interviewerId   BigInt
+  /// OFFERED (waiting for the applicant) | CONFIRMED | DECLINED (none of the times suit) | CANCELLED | DONE
+  status          String         @default("OFFERED") @db.VarChar(10)
+  /// The times offered, as ISO strings in UTC.
+  slots           Json
+  durationMinutes Int            @default(30)
+  /// The time the applicant picked.
+  startsAt        DateTime?
+  /// Where: a Discord voice channel, a game link, anything the applicant needs.
+  place           String?        @db.VarChar(300)
+  note            String?        @db.VarChar(500)
+  reminderSentAt  DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  application     JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+  @@index([status, startsAt])
+  @@index([interviewerId, status])
+}
+
+/// Someone's standing request to hear about new public jobs that match: words in the title or description, a type of job, or their own talent skills.
+model JobAlert {
+  id             String    @id @default(uuid()) @db.Char(36)
+  userId         BigInt
+  query          String?   @db.VarChar(100)
+  /// A list of VOLUNTEER | PAID | CONTRACT; empty means any.
+  types          Json
+  /// Also match any skill on their talent profile.
+  skills         Boolean   @default(false)
+  active         Boolean   @default(true)
+  lastNotifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId])
+  @@index([active])
+}
+
+/// The team's private discussion of an application. Never shown to the applicant.
+model JobApplicationComment {
+  id            String         @id @default(uuid()) @db.Char(36)
+  applicationId String         @db.Char(36)
+  authorId      BigInt?
+  body          String         @db.Text
+  createdAt     DateTime       @default(now())
+  legacyId      String?        @unique @db.VarChar(40)
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+}
+
+/// One score from 1 to 5 per reviewer per application.
+model JobApplicationRating {
+  id            String         @id @default(uuid()) @db.Char(36)
+  applicationId String         @db.Char(36)
+  reviewerId    BigInt
+  score         Int
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, reviewerId])
+}
+
+/// How a workspace shows up in public: its careers page address (`/jobs/<slug>`, falling back to the group id) and whether its open
+/// positions appear on the Rosterr job board.
+model HiringSettings {
+  workspaceGroupId BigInt     @id
+  slug             String?    @unique @db.VarChar(50)
+  tagline          String?    @db.VarChar(200)
+  listOnBoard      Boolean    @default(true)
+  /// Also show the open jobs on the workspace's own domain, at /careers (Business). The domain was members-only; this opens just those pages.
+  careersOnDomain  Boolean    @default(false)
+  /// Check written answers with AI-writing detectors (Pro). Off unless the workspace turns it on, because the answers go to the detectors.
+  aiChecks         Boolean    @default(false)
+  updatedAt        DateTime   @updatedAt
+  workspace        Workspace  @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+}
+
+// A URL a workspace's own system (or an integrator like a Discord bot) is told about hiring events at: someone applied, a status changed, a job
+// opened or closed. Each message is signed with the endpoint's secret, which is stored encrypted. Deliveries are queued and retried
+// (utils/hiring/webhooks.ts).
+model HiringWebhook {
+  id               String                  @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  url              String                  @db.Text
+  /// Encrypted (utils/secrets.ts); the plain value is shown once, when it is made.
+  secret           String                  @db.Text
+  /// Comma-separated event names, or "*" for all of them.
+  events           String                  @db.Text
+  isActive         Boolean                 @default(true)
+  lastSuccess      DateTime?
+  lastFailure      DateTime?
+  /// In a row. Past a limit the endpoint is switched off so one dead URL can't be retried for ever.
+  failureCount     Int                     @default(0)
+  createdBy        BigInt?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  workspace        Workspace               @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+  deliveries       HiringWebhookDelivery[]
+
+  @@index([workspaceGroupId, isActive])
+}
+
+model HiringWebhookDelivery {
+  id            String        @id @default(uuid()) @db.Char(36)
+  webhookId     String        @db.Char(36)
+  event         String        @db.VarChar(40)
+  payload       Json
+  /// PENDING | SUCCEEDED | FAILED
+  status        String        @default("PENDING") @db.VarChar(10)
+  attempts      Int           @default(0)
+  responseCode  Int?
+  error         String?       @db.Text
+  /// When the next retry is due; null once it is settled.
+  nextAttemptAt DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime      @default(now())
+  webhook       HiringWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextAttemptAt])
+}
+
+// A workspace's claim on a Staffr group, so its jobs and applications come across when Staffr closes (utils/hiring/staffr). It isn't
+// checked when it is made (Rosterr can't see Staffr's data); the import checks that the person who claimed it owns or administers that
+// group in Staffr, by Roblox id.
+model StaffrClaim {
+  workspaceGroupId BigInt    @id
+  staffrSlug       String    @db.VarChar(100)
+  claimedBy        BigInt
+  claimedAt        DateTime  @default(now())
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@index([staffrSlug])
+}
+
+// A person's public talent profile: what they do, what they have made, and whether they are looking. Opt-in. One per Rosterr account, keyed by
+// the Roblox user id like the rest of the person's data; no foreign key to User, so account deletion clears it explicitly (utils/user/deleteAccount.ts).
+model TalentProfile {
+  userId       BigInt                @id
+  headline     String?               @db.VarChar(100)
+  bio          String?               @db.Text
+  skills       Json
+  /// AVAILABLE | OPEN | NOT_AVAILABLE
+  availability String                @default("NOT_AVAILABLE") @db.VarChar(14)
+  /// Names of Roblox groups they have worked in.
+  groups       Json
+  portfolioUrl String?               @db.VarChar(500)
+  isPublic     Boolean               @default(false)
+  /// Groups that are hiring may invite them to apply (an in-app message; never their contact details).
+  acceptInvites Boolean              @default(true)
+  legacyId     String?               @unique @db.VarChar(40)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  items        TalentPortfolioItem[]
+
+  @@index([isPublic, updatedAt])
+}
+
+model TalentPortfolioItem {
+  id          String        @id @default(uuid()) @db.Char(36)
+  userId      BigInt
+  title       String        @db.VarChar(80)
+  description String?       @db.Text
+  url         String?       @db.VarChar(500)
+  /// project | video | art | game | script | other
+  type        String        @default("project") @db.VarChar(10)
+  position    Int           @default(0)
+  profile     TalentProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, position])
+}
+
+// LEGACY: a Discord webhook that received one stream of events. Replaced by DiscordChannelPost (the bot posts to a channel); read only by
+// scripts/migrate-discord.mts. Drop it once that has run everywhere.
+model WebhookStream {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  kind             String // AUDIT | ADMIN | CHAT | HIRING
+  urlEncrypted     String    @db.Text
+  urlHint          String
+  enabled          Boolean   @default(true)
+  errorCount       Int       @default(0)
+  lastError        String?   @db.Text
+  lastSentAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@unique([workspaceGroupId, kind])
+}
+
+// A dated target for the team as a whole (audience TEAM) or for one member (audience MEMBER).
+// Progress is worked out from activity and session data whenever it's read, so it can't drift.
+model Goal {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String
+  description      String?   @db.Text
+  metric           String // mins | sessions_hosted | sessions_attended | sessions_logged
+  target           Int
+  audience         String    @default("TEAM") // TEAM | MEMBER
+  userId           BigInt?
+  startsAt         DateTime
+  endsAt           DateTime
+  createdBy        BigInt?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@index([workspaceGroupId, endsAt])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+// Net new: nothing comparable exists on the web today. assigneeId/createdBy are plain BigInt columns
+// with no Prisma relation to `user` — same "unenforced reference" pattern as workspace.ownerId and
+// Goal.createdBy above — so deleting a user (see pages/api/user/delete-account.ts) never needs to know
+// about this table.
+model Task {
+  id               String     @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  title            String
+  description      String?    @db.Text
+  status           TaskStatus @default(TODO)
+  priority         String     @default("normal") // low | normal | high
+  dueDate          DateTime?
+  assigneeId       BigInt?
+  createdBy        BigInt?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  workspace        Workspace  @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@index([workspaceGroupId, status])
+  @@index([workspaceGroupId, assigneeId])
+}
+
+// The Discord bot serving one workspace: the shared Rosterr bot (Free and Pro), or the
+// workspace's own bot (Business), which is hosted for them. The bot only calls Discord's REST API,
+// so hosting a custom bot means storing its token, not running a process.
+model DiscordBot {
+  workspaceGroupId     BigInt    @id
+  mode                 String    @default("SHARED") // SHARED | CUSTOM
+  guildId              String?
+  guildName            String?
+  tokenEncrypted       String?   @db.Text // CUSTOM only
+  botUserId            String?
+  botName              String?
+  applicationId        String? // the bot's Discord application, for slash commands (custom bots)
+  publicKey            String? // its public key, to verify interaction requests (custom bots)
+  dmEnabled            Boolean   @default(true)
+  sessionEventsEnabled Boolean   @default(false)
+  sessionEventTypeIds  Json      @default("[]") // session types that get Discord events
+  eventChannelId       String? // a voice or stage channel; empty = external event with the game link
+  eventChannelKind     String? // VOICE | STAGE
+  reminderMinutes      Int       @default(30)
+  disabledEvents       Json      @default("[]")
+  templates            Json      @default("{}") // per-event message overrides (Pro)
+  errorCount           Int       @default(0)
+  lastError            String?   @db.Text
+  lastSentAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  workspace            Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+}
+
+// Where the workspace's Discord bot posts one kind of message in the server it is linked to: the audit log, the in-game admin and chat
+// logs, new jobs and birthdays. The bot (DiscordBot, shared or the workspace's own) is the only way Rosterr talks to Discord. A channel
+// belongs to the server, so these go when the bot is unlinked or moved to another server.
+model DiscordChannelPost {
+  workspaceGroupId BigInt
+  kind             String // AUDIT | ADMIN | CHAT | HIRING | BIRTHDAYS
+  guildId          String? // the server the channel is in, so a bot moved to another server never posts to a stranger's channel
+  channelId        String
+  channelName      String?
+  enabled          Boolean   @default(true)
+  config           Json      @default("{}") // AUDIT: { events, embed }; BIRTHDAYS: { embed }
+  errorCount       Int       @default(0)
+  lastError        String?   @db.Text
+  lastSentAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+
+  @@id([workspaceGroupId, kind])
+}
+
+// A workspace's own address (Business), served through Cloudflare for SaaS. Once a row exists the hostname is locked to
+// this workspace: nothing else on the platform is reachable from it. See docs/custom-domains.md.
+model WorkspaceDomain {
+  workspaceGroupId BigInt    @id
+  hostname         String    @unique @db.VarChar(253)
+  cfHostnameId     String?   @db.VarChar(64)
+  status           String    @default("pending") // Cloudflare's hostname status: pending | active | moved | deleted ...
+  sslStatus        String?   @db.VarChar(64) // pending_validation | pending_issuance | active ...
+  records          Json? // DNS records the owner still has to add
+  lastError        String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceGroupId], references: [groupId], onDelete: Cascade)
+}
+
+// A one-time code that carries a finished sign-in from the app address to a workspace's own domain (OAuth redirects can
+// only be registered for the app address). Hashed, short-lived, single use and tied to one hostname and one browser.
+model CustomHostLoginCode {
+  id            String    @id @default(uuid()) @db.Char(36)
+  userId        BigInt
+  workspaceId   BigInt
+  hostname      String    @db.VarChar(253)
+  codeHash      String    @unique @db.Char(64)
+  challengeHash String    @db.Char(64) // hash of a secret the browser keeps on the custom domain
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+// Direct messages waiting to go out, so a burst (a quota set for a whole department) is paced
+// under Discord's rate limits and survives a restart.
+model DiscordOutbox {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  discordId        BigInt
+  event            String
+  payload          Json
+  status           String    @default("PENDING") // PENDING | SENDING | SENT | SKIPPED | FAILED
+  attempts         Int       @default(0)
+  nextAttemptAt    DateTime  @default(now())
+  lastError        String?   @db.Text
+  createdAt        DateTime  @default(now())
+  sentAt           DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([workspaceGroupId, createdAt])
+}
+
+// Ties a session to the Discord scheduled event made for it, and remembers whether staff were
+// reminded. There is no foreign key on purpose: sessions are hard-deleted, and the sync uses a
+// link whose session has vanished to know which Discord event to remove.
+model DiscordSessionLink {
+  sessionId        String    @id @db.Char(36)
+  workspaceGroupId BigInt
+  eventId          String?
+  mode             String? // EXTERNAL | VOICE | STAGE
+  fingerprint      String?
+  eventRemoved     Boolean   @default(false) // deleted by hand in Discord: don't recreate it
+  remindedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([workspaceGroupId])
+}
+
+// A phone, browser or desktop app that can be sent a push notification. `token` is the APNs or FCM
+// device token, or for a browser the push-service URL it gave us (its keys are in `keys`).
+model PushDevice {
+  id         String   @id @default(uuid()) @db.Char(36)
+  userId     BigInt
+  platform   String // IOS | ANDROID | WEB
+  token      String   @unique @db.VarChar(700)
+  keys       Json? // web push only: { p256dh, auth }
+  name       String?
+  appVersion String?
+  failures   Int      @default(0)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum WaitlistStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// Someone's application for early access while Rosterr is "coming soon". Approved people get in on targetDate (or
+// straight away when there isn't one). Everyone who already had an account when the waitlist started was approved
+// automatically (grandfathered) so nobody was locked out.
+model WaitlistApplication {
+  id               String         @id @default(uuid()) @db.Char(36)
+  userId           BigInt         @unique
+  status           WaitlistStatus @default(PENDING)
+  /// The Roblox group this application is for. Required for a new application: approval is for this group specifically,
+  /// and creates its workspace. Null only on applications made before this was required (kept working as they are).
+  groupId          BigInt?
+  /// The group's name and icon, from Roblox at the time they applied (or last confirmed) — not typed by hand.
+  groupName        String?        @db.VarChar(120)
+  groupLogo        String?        @db.Text
+  teamSize         String?        @db.VarChar(40)
+  useCase          String?        @db.Text
+  targetDate       DateTime?
+  message          String?        @db.Text // shown to the applicant
+  staffNote        String?        @db.Text // staff only
+  decidedBy        String?        @db.VarChar(40) // Discord id of the staff member
+  decidedAt        DateTime?
+  grandfathered    Boolean        @default(false)
+  /// Set once the workspace for `groupId` has been created (straight away on approval, or later by
+  /// utils/cron/waitlistCreate.ts if approval gave a future early-access date). Never cleared.
+  workspaceGroupId BigInt?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  user             User           @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([groupId])
+}
+
+// A short-lived, single-use code shown on the website (where someone is already signed in) that the
+// phone app scans or types to sign in as that person, so the phone never needs Discord.
+// Only a hash of the code is stored.
+model QrLoginCode {
+  id            String    @id @default(uuid()) @db.Char(36)
+  userId        BigInt
+  codeHash      String    @unique @db.Char(64)
+  expiresAt     DateTime
+  createdIp     String?   @db.VarChar(64)
+  usedAt        DateTime?
+  usedIp        String?   @db.VarChar(64)
+  usedBy        String? // "iPhone app", "Android app", "Browser"
+  // Set for the desktop app's browser sign-in: the hash of a secret only the app knows, so only that app can use the code.
+  challengeHash String?   @db.Char(64)
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [userid], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// One person's choices about being pinged: everything on or off, and which kinds to skip.
+model PushPreference {
+  userId             BigInt   @id
+  enabled            Boolean  @default(true)
+  disabledCategories Json     @default("[]")
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [userid], onDelete: Cascade)
+}
+
+// What a person wants, once, across every workspace: which kinds of Discord DM they get, and when
+// not to be pinged. Pushes live on PushPreference; the in-app inbox is always on.
+model NotificationSettings {
+  userId                    BigInt    @id
+  quietStart                Int? // minutes after midnight in the person's own time zone
+  quietEnd                  Int?
+  snoozedUntil              DateTime?
+  discordDisabledCategories Json      @default("[]")
+  updatedAt                 DateTime  @updatedAt
+  user                      User      @relation(fields: [userId], references: [userid], onDelete: Cascade)
+}
+
+// ---- Mail: every member gets an inbox at <username>.<workspace>@<MAIL_DOMAIN>, and workspaces can add shared inboxes ----
+// Deliberately no relations to user/workspace, so deleting either is never blocked by mail rows (see docs/mail.md).
+
+enum MailboxKind {
+  PERSONAL
+  SHARED
+}
+
+enum MailDirection {
+  IN
+  OUT
+}
+
+enum MailThreadStatus {
+  OPEN
+  WAITING
+  DONE
+}
+
+enum MailStatus {
+  RECEIVED
+  QUEUED
+  SENT
+  FAILED
+  /// Sent, but the other mail server sent it back later (the address doesn't exist, the mailbox is full, and so on).
+  BOUNCED
+}
+
+/// One row per workspace that has used mail. `slug` is the workspace part of every address.
+model MailSettings {
+  workspaceGroupId    BigInt   @id
+  enabled             Boolean  @default(true)
+  slug                String   @unique @db.VarChar(40)
+  /// Sender display name, e.g. "{username} @ {org}". Null means that default.
+  displayNameTemplate String?  @db.VarChar(80)
+  /// The closing and signature added to every email sent from the workspace. {name}, {role}, {department} and so on are filled
+  /// in from the sender's profile.
+  signatureTemplate   String?  @db.Text
+  /// When on, the signature is always added; when off, people can leave it out of an email.
+  signatureEnforced   Boolean  @default(false)
+  /// Whether members can browse the workspace's address list (everyone with a mail address, and the shared inboxes).
+  galEnabled          Boolean  @default(true)
+  /// The lowest Roblox group rank (1-255) that may use Mail. Null means everyone in the workspace. Workspace admins always may.
+  minRank             Int?
+  /// When on, people can only email others inside the workspace (members and shared inboxes).
+  internalOnly        Boolean  @default(false)
+  /// When the workspace was first seen off Business while it had its own email domain or aliases. They keep receiving for a grace
+  /// period and are then removed from the mail server; back on Business before then, nothing is lost. Null while on Business.
+  businessLapsedAt    DateTime?
+  /// Set by the bounce check (utils/mail/guardrails.ts) when too many of the workspace's emails weren't delivered: nobody in it can send
+  /// until staff resume it from the Mail page.
+  pausedAt            DateTime?
+  pausedReason        String?  @db.VarChar(300)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Mailbox {
+  id               String           @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  kind             MailboxKind
+  /// The owner of a personal inbox; null for a shared one.
+  userId           BigInt?
+  /// The part before the @, lower case: "<name>.<workspace slug>". Unique across everything.
+  localPart        String           @unique @db.VarChar(100)
+  /// Display name of a shared inbox ("HR").
+  name             String?          @db.VarChar(60)
+  disabled         Boolean          @default(false)
+  /// A member can leave themselves out of the workspace's address list.
+  hiddenFromGal    Boolean          @default(false)
+  /// Set when this inbox is a real mailbox on the mail server (mailcow): the mailbox's password, encrypted. Nobody sees it;
+  /// the site uses it to send and to fetch new mail.
+  passwordEnc      String?          @db.Text
+  lastSyncAt       DateTime?
+  syncError        String?          @db.VarChar(200)
+  /// The address people see and mail is sent from, when it is on the workspace's own domain (liam@qsg.ie). The real mailbox (the
+  /// login) stays "<localPart>@MAIL_DOMAIN" and keeps receiving; this address is an alias of it on the mail server. Null: the
+  /// rosterr.cc address is used.
+  customAddress    String?          @unique @db.VarChar(254)
+  /// Mailbox size on the mail server, in MB. Null: the server's default (MAILCOW_QUOTA_MB). Business admins can change it.
+  quotaMb          Int?
+  /// Switched off by an admin (Business). Unlike `disabled` alone, coming back to the workspace or opening Mail doesn't undo it.
+  adminDisabled    Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  members          MailboxMember[]
+  aliasTargets     MailAliasTarget[]
+  messages         MailMessage[]
+  contacts         MailContact[]
+  drafts           MailDraft[]
+  attachments      MailAttachment[]
+  labels           MailLabel[]
+  rules            MailRule[]
+  autoReply        MailAutoReply?
+  threads          MailThread[]
+  notes            MailNote[]
+  templates        MailTemplate[]
+  blocked          MailBlock[]
+
+  @@unique([workspaceGroupId, userId])
+  @@index([workspaceGroupId])
+}
+
+/// Who can read a shared inbox (the owner of a personal one has a row too), and whether they want a Discord DM per email.
+enum MailDomainStatus {
+  /// Waiting for the ownership TXT record. Nothing exists on the mail server yet.
+  PENDING_OWNERSHIP
+  /// Ownership proven: the domain and its DKIM key are on the mail server (switched off), waiting for MX, SPF, DKIM and DMARC.
+  PENDING_DNS
+  /// Switched on: aliases on it receive mail and people can send from it.
+  LIVE
+  /// The workspace left Business. People send from rosterr.cc again; the aliases still receive until
+  /// MailSettings.businessLapsedAt + the grace period, then everything on the mail server is removed.
+  PAUSED
+}
+
+enum MailAliasKind {
+  /// A mailbox's own address on the workspace's domain (liam@qsg.ie). Exactly one target.
+  PRIMARY
+  /// An extra address an admin made (sales@qsg.ie, or hr2.slug@rosterr.cc), to one or more mailboxes.
+  EXTRA
+  /// "@qsg.ie": anything to the domain that matches nothing else.
+  CATCHALL
+}
+
+/// A Business workspace's own email domain (one per workspace). No foreign key to Workspace, like the other mail tables, so a
+/// deleted workspace's domain is still here for the hourly job to remove from the mail server.
+model MailDomain {
+  workspaceGroupId BigInt           @id
+  domain           String           @unique @db.VarChar(253)
+  status           MailDomainStatus @default(PENDING_OWNERSHIP)
+  /// The value of the ownership TXT record (_rosterr.<domain>).
+  verifyToken      String           @db.VarChar(64)
+  dkimSelector     String?          @db.VarChar(63)
+  /// The DKIM TXT value the mail server gave ("v=DKIM1;k=rsa;p=...").
+  dkimTxt          String?          @db.Text
+  /// The last DNS check: { checkedAt, records: [{ key, ok, found }] }.
+  lastCheck        Json?
+  liveAt           DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+/// An alias on the mail server that this workspace owns. Every one is mirrored here, so the site only ever edits or removes
+/// aliases it made for the same workspace.
+model MailAlias {
+  id               String            @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  kind             MailAliasKind
+  /// Lower case. "@qsg.ie" for a catch-all.
+  address          String            @unique @db.VarChar(254)
+  domain           String            @db.VarChar(253)
+  /// The alias's id on the mail server (needed to edit or remove it). Null until it is known.
+  mailcowId        Int?
+  createdAt        DateTime          @default(now())
+  targets          MailAliasTarget[]
+
+  @@index([workspaceGroupId])
+  @@index([domain])
+}
+
+model MailAliasTarget {
+  aliasId   String    @db.Char(36)
+  mailboxId String    @db.Char(36)
+  alias     MailAlias @relation(fields: [aliasId], references: [id], onDelete: Cascade)
+  mailbox   Mailbox   @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@id([aliasId, mailboxId])
+  @@index([mailboxId])
+}
+
+model MailboxMember {
+  mailboxId String  @db.Char(36)
+  userId    BigInt
+  dmOnMail  Boolean @default(false)
+  mailbox   Mailbox @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@id([mailboxId, userId])
+  @@index([userId])
+}
+
+model MailMessage {
+  id             String             @id @default(uuid()) @db.Char(36)
+  mailboxId      String             @db.Char(36)
+  direction      MailDirection
+  status         MailStatus
+  threadId       String             @db.Char(36)
+  messageId      String?            @db.VarChar(255)
+  inReplyTo      String?            @db.VarChar(255)
+  fromAddress    String             @db.VarChar(320)
+  fromName       String?            @db.VarChar(200)
+  toAddresses    Json
+  /// Cc'd addresses. On an outgoing message, bccAddresses holds the hidden ones (only the sender's own copy has them).
+  ccAddresses    Json?
+  bccAddresses   Json?
+  subject        String             @db.VarChar(300)
+  bodyText       String             @db.LongText
+  /// The first line or so of the text, for the message list.
+  snippet        String             @default("") @db.VarChar(160)
+  /// SPF/DKIM/DMARC verdicts the mail server recorded on the way in, if it did.
+  authResults    Json?
+  /// Who sent it (outgoing only), and the rank they had at the time, so history doesn't change when someone is promoted.
+  sentByUserId   BigInt?
+  sentByRank     Int?
+  sentByRankName String?            @db.VarChar(80)
+  /// How many recipients of an outgoing message counted against the daily limit (replies count 0).
+  coldRecipients Int                @default(0)
+  error          String?            @db.VarChar(300)
+  readAt         DateTime?
+  starred        Boolean            @default(false)
+  /// Out of the inbox but kept. A new reply in the conversation brings it back.
+  archivedAt     DateTime?
+  /// In the trash; emptied for good after 30 days.
+  trashedAt      DateTime?
+  hasAttachments Boolean            @default(false)
+  /// The text uses the small formatting set (bold, italic, lists, links, quotes: see utils/mail/rich.ts) instead of being plain.
+  rich           Boolean            @default(false)
+  /// An incoming email's formatted body, cleaned of anything that can run or phone home (utils/mail/html.ts). Shown in a sandbox.
+  bodyHtml       String?            @db.LongText
+  createdAt      DateTime           @default(now())
+  mailbox        Mailbox            @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  attachments    MailAttachment[]
+  labels         MailMessageLabel[]
+
+  @@unique([mailboxId, messageId])
+  @@index([mailboxId, direction, createdAt])
+  @@index([mailboxId, trashedAt])
+  @@index([threadId])
+  @@index([sentByUserId, createdAt])
+}
+
+/// How many emails a person may send to people who haven't written to them first, per day, by the workspace's plan.
+/// Changed by platform staff (Platform admin > Mail).
+model MailLimit {
+  plan          SubscriptionPlan @id
+  perUserPerDay Int
+  updatedBy     String?          @db.VarChar(40)
+  updatedAt     DateTime         @default(now()) @updatedAt
+}
+
+/// Platform-wide switches for mail. A single row (id 1).
+/// The content filter's settings, one row (id 1), changed from the Platform portal (utils/safety/filterSettings.ts).
+model ContentFilterSettings {
+  id            Int      @id @default(1)
+  /// Off stops the whole filter (scam links, blocked words and grooming flags).
+  enabled       Boolean  @default(true)
+  blockLinks    Boolean  @default(true)
+  flagGrooming  Boolean  @default(true)
+  /// Words that are not allowed in a post, one per line (three letters or more).
+  blockedTerms  String   @db.Text
+  updatedBy     String?  @db.VarChar(40)
+  updatedAt     DateTime @default(now()) @updatedAt
+}
+
+model MailPlatformSettings {
+  id             Int      @id @default(1)
+  /// Off stops all outgoing mail everywhere (a kill switch if the domain is being abused).
+  sendingEnabled Boolean  @default(true)
+  /// Daily cap on replies per person (replies to people who wrote first), a safety net rather than a product limit.
+  replyDailyCap  Int      @default(100)
+  updatedBy      String?  @db.VarChar(40)
+  updatedAt      DateTime @default(now()) @updatedAt
+}
+
+/// The people an inbox has written to or heard from, plus ones added by hand. Personal to the inbox: a shared inbox's contacts are
+/// shared by the people who can read it.
+model MailContact {
+  id              String   @id @default(uuid()) @db.Char(36)
+  mailboxId       String   @db.Char(36)
+  email           String   @db.VarChar(320)
+  name            String?  @db.VarChar(120)
+  organisation    String?  @db.VarChar(120)
+  notes           String?  @db.VarChar(1000)
+  starred         Boolean  @default(false)
+  /// Set once someone edits the contact, so an incoming email's header doesn't rename it again.
+  edited          Boolean  @default(false)
+  sentCount       Int      @default(0)
+  receivedCount   Int      @default(0)
+  lastContactedAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+  mailbox         Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@unique([mailboxId, email])
+  @@index([mailboxId, lastContactedAt])
+}
+
+/// An email being written, saved as it is typed. Belongs to whoever is writing it, even in a shared inbox.
+model MailDraft {
+  id           String           @id @default(uuid()) @db.Char(36)
+  mailboxId    String           @db.Char(36)
+  userId       BigInt
+  toAddresses  Json
+  ccAddresses  Json
+  bccAddresses Json
+  subject      String           @default("") @db.VarChar(300)
+  body         String           @db.Text
+  /// The text being answered or forwarded, kept under what the person writes.
+  quote        String?          @db.Text
+  replyToId    String?          @db.Char(36)
+  rich         Boolean          @default(false)
+  /// Set when it is scheduled: the cron job sends it then.
+  sendAt       DateTime?
+  sendError    String?          @db.VarChar(300)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  mailbox      Mailbox          @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  attachments  MailAttachment[]
+
+  @@index([mailboxId, userId, updatedAt])
+  @@index([sendAt])
+}
+
+/// A file on an email or draft. Uploaded files wait here (with neither a message nor a draft) until they are sent or saved.
+/// The bytes are in MailAttachmentBlob so listing emails never loads them.
+model MailAttachment {
+  id          String              @id @default(uuid()) @db.Char(36)
+  mailboxId   String              @db.Char(36)
+  messageId   String?             @db.Char(36)
+  draftId     String?             @db.Char(36)
+  uploadedBy  BigInt?
+  filename    String              @db.VarChar(255)
+  contentType String              @db.VarChar(120)
+  size        Int
+  /// What checking the file found (utils/mail/scan.ts): CLEAN, UNSCANNED (no virus scanner set up, built-in checks passed), SUSPICIOUS
+  /// (macros, scripts, a program inside an archive: downloadable after a warning), BLOCKED (a virus or a disguised program: the bytes
+  /// are not kept) or PENDING (the scanner couldn't be reached: not downloadable until it has been checked).
+  scanStatus  String              @default("UNSCANNED") @db.VarChar(12)
+  scanNote    String?             @db.VarChar(200)
+  scannedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  mailbox     Mailbox             @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  message     MailMessage?        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  draft       MailDraft?          @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  blob        MailAttachmentBlob?
+
+  @@index([messageId])
+  @@index([draftId])
+  @@index([mailboxId])
+  @@index([scanStatus])
+}
+
+model MailAttachmentBlob {
+  attachmentId String         @id @db.Char(36)
+  data         Bytes          @db.LongBlob
+  attachment   MailAttachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+}
+
+/// A name someone can put on conversations in an inbox.
+model MailLabel {
+  id        String             @id @default(uuid()) @db.Char(36)
+  mailboxId String             @db.Char(36)
+  name      String             @db.VarChar(40)
+  color     String             @default("gray") @db.VarChar(16)
+  createdAt DateTime           @default(now())
+  mailbox   Mailbox            @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+  messages  MailMessageLabel[]
+
+  @@unique([mailboxId, name])
+}
+
+model MailMessageLabel {
+  messageId String      @db.Char(36)
+  labelId   String      @db.Char(36)
+  message   MailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  label     MailLabel   @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, labelId])
+  @@index([labelId])
+}
+
+/// "When an email like this arrives, do this." Checked in order for each new email.
+model MailRule {
+  id              String   @id @default(uuid()) @db.Char(36)
+  mailboxId       String   @db.Char(36)
+  position        Int      @default(0)
+  enabled         Boolean  @default(true)
+  /// Conditions: all that are set must match (text is matched anywhere, ignoring case).
+  fromContains    String?  @db.VarChar(200)
+  toContains      String?  @db.VarChar(200)
+  subjectContains String?  @db.VarChar(200)
+  bodyContains    String?  @db.VarChar(200)
+  hasAttachment   Boolean  @default(false)
+  /// What to do.
+  markRead        Boolean  @default(false)
+  star            Boolean  @default(false)
+  archive         Boolean  @default(false)
+  trash           Boolean  @default(false)
+  labelId         String?  @db.Char(36)
+  createdAt       DateTime @default(now())
+  mailbox         Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@index([mailboxId, position])
+}
+
+/// An out-of-office reply for an inbox.
+model MailAutoReply {
+  mailboxId    String    @id @db.Char(36)
+  enabled      Boolean   @default(false)
+  subject      String    @default("") @db.VarChar(200)
+  body         String    @db.Text
+  startsAt     DateTime?
+  endsAt       DateTime?
+  /// Only answer people who are already in the inbox's contacts.
+  contactsOnly Boolean   @default(false)
+  updatedAt    DateTime  @updatedAt
+  mailbox      Mailbox   @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+}
+
+/// Who has already had an out-of-office reply, so nobody gets one more than once every few days.
+model MailAutoReplyLog {
+  mailboxId String   @db.Char(36)
+  email     String   @db.VarChar(320)
+  sentAt    DateTime @default(now())
+
+  @@id([mailboxId, email])
+  @@index([mailboxId, sentAt])
+}
+
+/// The help-desk side of a conversation in a shared inbox: who is looking after it, and where it stands. A row exists only once
+/// someone has assigned or moved it; no row means open and unassigned. (A conversation is every message with the same threadId.)
+model MailThread {
+  mailboxId      String           @db.Char(36)
+  threadId       String           @db.Char(36)
+  assigneeUserId BigInt?
+  status         MailThreadStatus @default(OPEN)
+  statusAt       DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  mailbox        Mailbox          @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@id([mailboxId, threadId])
+  @@index([mailboxId, assigneeUserId])
+  @@index([mailboxId, status])
+}
+
+/// A comment on a conversation that only the people who can read the inbox see (never sent), or a line in its history
+/// ("Sam assigned this to Ned"), kind EVENT.
+model MailNote {
+  id        String   @id @default(uuid()) @db.Char(36)
+  mailboxId String   @db.Char(36)
+  threadId  String   @db.Char(36)
+  authorId  BigInt
+  kind      String   @default("NOTE") @db.VarChar(10)
+  body      String   @db.VarChar(4000)
+  createdAt DateTime @default(now())
+  mailbox   Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@index([mailboxId, threadId, createdAt])
+}
+
+/// A saved reply: text someone can drop into an email, with the same {name}-style placeholders as signatures.
+model MailTemplate {
+  id        String   @id @default(uuid()) @db.Char(36)
+  mailboxId String   @db.Char(36)
+  name      String   @db.VarChar(60)
+  body      String   @db.VarChar(5000)
+  createdBy BigInt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  mailbox   Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@unique([mailboxId, name])
+}
+
+/// A sender an inbox doesn't want to hear from. Their emails are dropped when they arrive.
+model MailBlock {
+  mailboxId String   @db.Char(36)
+  email     String   @db.VarChar(320)
+  createdBy BigInt
+  createdAt DateTime @default(now())
+  mailbox   Mailbox  @relation(fields: [mailboxId], references: [id], onDelete: Cascade)
+
+  @@id([mailboxId, email])
+}
+
+enum ReleaseStatus {
+  DRAFT
+  EARLY_ACCESS
+  GLOBAL
+}
+
+/// A release that platform staff roll out in stages (Platform admin > Releases). Draft means nobody has it, early access means only the
+/// workspaces in PlatformReleaseWorkspace, global means everyone. Code asks utils/releases.ts `releaseEnabled(key, groupId)`.
+model PlatformRelease {
+  key        String                     @id @db.VarChar(40)
+  version    String                     @db.VarChar(20)
+  title      String                     @db.VarChar(120)
+  summary    String                     @default("") @db.VarChar(300)
+  /// Bullet lines ("- text"). Shown in What's new once the release is global.
+  changelog  String                     @db.Text
+  status     ReleaseStatus              @default(DRAFT)
+  releasedAt DateTime?
+  /// Who released it globally (their name at the time).
+  releasedBy String?                    @db.VarChar(80)
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+  workspaces PlatformReleaseWorkspace[]
+}
+
+/// A workspace in a release's early access. No link to the workspace table: it stays here (harmlessly) if the workspace is deleted.
+model PlatformReleaseWorkspace {
+  releaseKey       String          @db.VarChar(40)
+  workspaceGroupId BigInt
+  addedBy          String          @db.VarChar(80)
+  createdAt        DateTime        @default(now())
+  release          PlatformRelease @relation(fields: [releaseKey], references: [key], onDelete: Cascade)
+
+  @@id([releaseKey, workspaceGroupId])
+  @@index([workspaceGroupId])
+}
+
+/// One place someone is signed in (a browser or a phone app). The cookie carries only this row's id, so a sign-in can be listed and ended.
+model UserSession {
+  id         String    @id @db.Char(36)
+  userId     BigInt
+  /// What it looks like in the list, e.g. "Chrome on Mac".
+  device     String    @default("Unknown device") @db.VarChar(120)
+  /// "web", "ios" or "android".
+  platform   String    @default("web") @db.VarChar(12)
+  /// Two-letter country, when the host tells us (Cloudflare does).
+  country    String?   @db.Char(2)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  /// Set when it is ended from the list, or by "sign out everywhere else".
+  revokedAt  DateTime?
+
+  @@index([userId, revokedAt])
+}
+
+/// What someone has chosen to hide from their own Home page in one workspace (Wall and Home v1.3). No foreign keys: it goes with the account
+/// (utils/user/deleteAccount.ts) and stays harmlessly if the workspace is deleted.
+model HomePreference {
+  userId           BigInt
+  workspaceGroupId BigInt
+  /// Widget ids, e.g. ["birthdays", "games"].
+  hidden           Json     @default("[]")
+  updatedAt        DateTime @updatedAt
+
+  @@id([userId, workspaceGroupId])
+}
+
+/// One change of someone's rank in a workspace (Directory v1.4), recorded wherever a rank is written (utils/ranks.ts). The ranks are as stored
+/// in `rank`: a Roblox rank number, or for older rows the role's own id. No foreign keys: it goes with the account or workspace explicitly.
+model RankChange {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  userId           BigInt
+  /// Null for the first time we saw them.
+  fromRankId       BigInt?
+  toRankId         BigInt
+  /// What caused it: sync, setup, added, resync, logbook, api or import.
+  source           String   @db.VarChar(16)
+  /// The staff member who did it, when it was a person.
+  actorId          BigInt?
+  createdAt        DateTime @default(now())
+
+  @@index([workspaceGroupId, userId, createdAt(sort: Desc)])
+}
+
+/// A person's secret calendar link for one workspace's sessions (Sessions v1.6): subscribe to it in Google, Apple or Outlook calendar.
+/// The link is a bearer secret for a read-only schedule; "reset" makes a new one. No foreign keys: it goes with the account or workspace explicitly.
+model CalendarFeed {
+  id               String    @id @default(uuid()) @db.Char(36)
+  userId           BigInt
+  workspaceGroupId BigInt
+  token            String    @unique @db.Char(48)
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime?
+
+  @@unique([userId, workspaceGroupId])
+}
+
+// A message from the Rosterr team to people in the apps: to one person, to everyone in a workspace, or to everybody. It shows
+// in each person's notifications (merged in by the notifications API) and goes out as a push. See utils/platform/messages.ts.
+model PlatformMessage {
+  id               String                   @id @default(uuid()) @db.Char(36)
+  audience         String                   @db.VarChar(12) // ALL | USER | WORKSPACE
+  userId           BigInt? // for USER
+  workspaceGroupId BigInt? // for WORKSPACE
+  title            String                   @db.VarChar(120)
+  body             String                   @db.Text
+  href             String?                  @db.Text
+  sentByDiscordId  BigInt
+  sentByName       String?
+  recipients       Int                      @default(0)
+  /// When people can see it. In the future, it is scheduled; the scheduler sends the ping once it is due.
+  publishAt        DateTime                 @default(now())
+  /// Set when the ping has gone out. Null while a message is waiting for its time.
+  pushedAt         DateTime?
+  createdAt        DateTime                 @default(now())
+  receipts         PlatformMessageReceipt[]
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([workspaceGroupId])
+}
+
+// One person having read, or cleared, a platform message. A message with no row here is unread.
+model PlatformMessageReceipt {
+  messageId String          @db.Char(36)
+  userId    BigInt
+  readAt    DateTime        @default(now())
+  dismissed Boolean         @default(false)
+  message   PlatformMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@index([userId])
+}
+
+// The oldest app build each platform may still run. An app older than this shows "update required" and does nothing else until it is
+// updated. One row per platform (IOS | ANDROID); no row means no minimum. Set from the platform admin portal.
+model AppVersionPolicy {
+  platform      String   @id @db.VarChar(8)
+  minimumBuild  Int      @default(0)
+  /// The highest build any device of this platform has reported. A minimum above it is refused, so a typo can't lock everyone out.
+  highestSeenBuild Int   @default(0)
+  storeUrl      String?  @db.Text
+  message       String?  @db.Text
+  updatedByName String?
+  updatedAt     DateTime @default(now()) @updatedAt
+}
+
+// A crash in someone's browser, reported by the app itself: one row per distinct error (by fingerprint), with how many times it
+// has happened and when. No person is recorded, only what broke and where. See utils/clientErrors.ts.
+model ClientError {
+  id          String   @id @default(uuid()) @db.Char(36)
+  fingerprint String   @unique @db.VarChar(40)
+  message     String   @db.VarChar(400)
+  stack       String?  @db.Text
+  route       String   @db.VarChar(200)
+  source      String   @db.VarChar(16) // render | error | promise
+  build       String?  @db.VarChar(40)
+  userAgent   String?  @db.VarChar(200)
+  count       Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([lastSeenAt])
+  @@index([count])
+}
+
+// A saved message staff can start from (Platform > Messages), so common announcements are written once.
+model PlatformMessageTemplate {
+  id            String   @id @default(uuid()) @db.Char(36)
+  name          String   @db.VarChar(60)
+  title         String   @db.VarChar(120)
+  body          String   @db.Text
+  href          String?  @db.Text
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Who has been sent a one-off policy notice (Platform > Policy notice, utils/platform/policyNotice.ts), so sending it again never
+// emails anyone twice. Written just before the email goes and removed if it couldn't be sent.
+model PolicyNoticeDelivery {
+  id              String   @id @default(uuid()) @db.Char(36)
+  noticeKey       String   @db.VarChar(64)
+  userId          BigInt
+  email           String   @db.VarChar(254)
+  /// The date this person was told the changes apply from.
+  effectiveFrom   DateTime
+  sentByDiscordId BigInt
+  sentAt          DateTime @default(now())
+
+  @@unique([noticeKey, userId])
+  @@unique([noticeKey, email])
+}
+
+// Who turned up to a session: one row per person, present, late, absent or excused (utils/sessions/attendance.ts). The host's marks are
+// written as they are made; at the finish, what the game saw and approved leave fill in anyone the host left unmarked. Someone with no
+// row was never marked and counts for nothing. The session's log keeps the history of each tap and the notes.
+model SessionAttendance {
+  id               String           @id @default(uuid()) @db.Char(36)
+  sessionId        String           @db.Char(36)
+  userId           BigInt
+  workspaceGroupId BigInt
+  /// present | late | absent | excused
+  status           String           @db.VarChar(16)
+  /// host (marked by a person) | game (the in-game package saw them) | leave (approved leave covered the session)
+  source           String           @db.VarChar(16)
+  /// Not in the session's roles: added on the day.
+  walkIn           Boolean          @default(false)
+  markedById       BigInt?
+  /// The session's start, copied so a person's record over a period is one indexed read.
+  sessionDate      DateTime
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  session          WorkspaceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([workspaceGroupId, userId, sessionDate])
+  @@index([workspaceGroupId, sessionDate])
+}
+
+// Polls and short surveys (docs/polls.md, utils/polls/). Made by people with manage_polls, answered on Home and the Wall.
+model Poll {
+  id                String       @id @default(uuid()) @db.Char(36)
+  workspaceGroupId  BigInt
+  createdById       BigInt
+  question          String       @db.VarChar(300)
+  /// Several choices may be ticked.
+  multiple          Boolean      @default(false)
+  /// The optional free-text question under the choices. Null when there isn't one.
+  textPrompt        String?      @db.VarChar(300)
+  /// Anonymous: what was chosen is stored without the person (PollResponse.userId is null) and can't be changed.
+  anonymous         Boolean      @default(false)
+  /// CREATOR (only the creator and poll managers) | AFTER_ANSWER | AFTER_CLOSE
+  resultsVisibility String       @default("CREATOR") @db.VarChar(20)
+  /// EVERYONE | ROLES | DEPARTMENTS, with the role or department ids in audienceIds.
+  audience          String       @default("EVERYONE") @db.VarChar(20)
+  audienceIds       Json         @default("[]")
+  closesAt          DateTime
+  /// Set when it was closed before closesAt.
+  closedAt          DateTime?
+  postToDiscord     Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  options           PollOption[]
+  responders        PollResponder[]
+  responses         PollResponse[]
+
+  @@index([workspaceGroupId, closesAt])
+}
+
+model PollOption {
+  id       String @id @default(uuid()) @db.Char(36)
+  pollId   String @db.Char(36)
+  label    String @db.VarChar(150)
+  position Int
+  poll     Poll   @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@index([pollId])
+}
+
+/// Who has answered a poll. For an anonymous poll this is the only row that ties a person to it, and it does not say what they chose.
+model PollResponder {
+  pollId     String   @db.Char(36)
+  userId     BigInt
+  answeredAt DateTime @default(now())
+  poll       Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, userId])
+  @@index([userId])
+}
+
+/// What was chosen (option ids) and written. On an anonymous poll userId is null and there is no time on the row, so it can't be matched to
+/// a PollResponder by when it was written.
+model PollResponse {
+  id         String    @id @default(uuid()) @db.Char(36)
+  pollId     String    @db.Char(36)
+  userId     BigInt?
+  optionIds  Json      @default("[]")
+  text       String?   @db.Text
+  /// Named polls only.
+  answeredAt DateTime?
+  poll       Poll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+  @@index([pollId])
+}
+
+// Order logging (docs/orders.md, utils/orders/): an order a staff member served in game, as the in-game package reports it through
+// /api/activity/bulk. `clientRef` is the id the game gave it, so a batch sent twice (a retry after a timeout) is only counted once.
+model ServedOrder {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  /// The staff member who served it.
+  userId           BigInt
+  customerId       BigInt?
+  clientRef        String   @db.VarChar(64)
+  /// [{ name, quantity }], as the game named them.
+  items            Json
+  itemCount        Int
+  /// How many of the items weren't on the menu (when the workspace uses one).
+  offMenu          Int      @default(0)
+  /// 1 to 5, when the customer rated it.
+  rating           Int?
+  placeId          BigInt?
+  servedAt         DateTime
+  createdAt        DateTime @default(now())
+
+  @@unique([workspaceGroupId, clientRef])
+  @@index([workspaceGroupId, servedAt])
+  @@index([workspaceGroupId, userId, servedAt])
+}
+
+// What a café, restaurant or shop sells, when its managers keep a menu rather than letting the game name items freely.
+model OrderMenuItem {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String   @db.VarChar(60)
+  category         String?  @db.VarChar(40)
+  position         Int      @default(0)
+  archived         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([workspaceGroupId, name])
+  @@index([workspaceGroupId, archived])
+}
+
+// An order count someone has reached (100 orders served...), written once so the Discord post for it goes out once.
+model OrderMilestone {
+  workspaceGroupId BigInt
+  userId           BigInt
+  milestone        Int
+  reachedAt        DateTime @default(now())
+
+  @@id([workspaceGroupId, userId, milestone])
+}
+
+// ---------------------------------------------------------------------------
+// The import wizard (Settings > Import, docs/import.md): a workspace moving from Hyra, Series or a spreadsheet brings its history in.
+// One ImportBatch per file imported. ImportedRecord is one row per source row that became something here, keyed by where it came from,
+// so the same file imported twice adds nothing the second time; undoing a batch removes what it made and its keys. No foreign keys on
+// people (like the other newer tables).
+// ---------------------------------------------------------------------------
+
+model ImportBatch {
+  id               String    @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  /// "hyra", "series" or "csv" (a spreadsheet mapped by hand).
+  source           String    @db.VarChar(16)
+  /// What the file held: "staff", "logbook", "leave", "activity" or "sessions".
+  kind             String    @db.VarChar(16)
+  fileName         String    @db.VarChar(255)
+  createdById      BigInt
+  createdAt        DateTime  @default(now())
+  /// What it did, as counts: { created, skipped, byReason }.
+  summary          Json
+  undoneAt         DateTime?
+  undoneById       BigInt?
+
+  @@index([workspaceGroupId, createdAt])
+}
+
+model ImportedRecord {
+  id               String   @id @default(uuid()) @db.Char(36)
+  batchId          String   @db.Char(36)
+  workspaceGroupId BigInt
+  kind             String   @db.VarChar(16)
+  /// Where the row came from: the source's own id for it ("hyra:logbook:65f..."), or a fingerprint of the row when it has none.
+  sourceKey        String   @db.VarChar(191)
+  /// What it became: "LogbookEntry", "LeaveNotice", "ActivityPeriodSummary", "WorkspaceSession", "SessionKind", "Membership", "Membership.joinDate".
+  targetTable      String   @db.VarChar(32)
+  targetId         String   @db.VarChar(64)
+  createdAt        DateTime @default(now())
+
+  @@unique([workspaceGroupId, kind, sourceKey])
+  @@index([batchId])
+}
+
+/// A column mapping someone saved for a spreadsheet layout, so the next file laid out the same way maps itself.
+model ImportMapping {
+  id               String   @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  name             String   @db.VarChar(80)
+  kind             String   @db.VarChar(16)
+  source           String   @db.VarChar(16)
+  /// { field: column header } for this kind's fields.
+  columns          Json
+  createdById      BigInt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([workspaceGroupId, name])
+}
+
+// ---- Rosterr's own social media (Platform → Social media, utils/social/) ----------------------------------------------------------
+
+// One of Rosterr's own accounts on a social platform, linked by a Super Admin (or someone with social.manage). Its tokens are sealed
+// with the server's secret (utils/secrets.ts) and never sent to a browser.
+model SocialAccount {
+  id                 String             @id @default(uuid()) @db.Char(36)
+  platform           String             @db.VarChar(16) // X, INSTAGRAM, TIKTOK, YOUTUBE
+  externalId         String             @db.VarChar(128)
+  handle             String?            @db.VarChar(191)
+  displayName        String?            @db.VarChar(191)
+  avatarUrl          String?            @db.Text
+  accessTokenEnc     String             @db.Text
+  refreshTokenEnc    String?            @db.Text
+  expiresAt          DateTime?
+  refreshExpiresAt   DateTime?
+  scopes             String?            @db.Text
+  connectedByDiscord BigInt
+  connectedByName    String?            @db.VarChar(120)
+  lastError          String?            @db.Text
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  targets            SocialPostTarget[]
+
+  @@unique([platform, externalId])
+}
+
+// One thing to post, to one or more accounts at once. Its media are files on disk (SocialMedia).
+model SocialPost {
+  id               String             @id @default(uuid()) @db.Char(36)
+  caption          String             @db.Text
+  /// The video's title on YouTube (the caption becomes its description there).
+  title            String?            @db.VarChar(120)
+  /// Per-platform choices: TikTok's privacy level and comment settings, YouTube's privacy.
+  options          Json?
+  status           String             @db.VarChar(16) // SCHEDULED, PUBLISHING, PUBLISHED, PARTIAL, FAILED, CANCELLED
+  scheduledFor     DateTime?
+  createdByDiscord BigInt
+  createdByName    String?            @db.VarChar(120)
+  createdAt        DateTime           @default(now())
+  /// When posting began (a post still "posting" long after this was interrupted).
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  targets          SocialPostTarget[]
+  media            SocialMedia[]
+
+  @@index([status, scheduledFor])
+  @@index([createdAt])
+}
+
+model SocialPostTarget {
+  id          String        @id @default(uuid()) @db.Char(36)
+  postId      String        @db.Char(36)
+  accountId   String        @db.Char(36)
+  status      String        @db.VarChar(16) // PENDING, PUBLISHING, PUBLISHED, FAILED
+  remoteId    String?       @db.VarChar(191)
+  url         String?       @db.Text
+  error       String?       @db.Text
+  attempts    Int           @default(0)
+  publishedAt DateTime?
+  post        SocialPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account     SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([accountId])
+}
+
+// A picture or video for a post, kept on disk (SOCIAL_MEDIA_DIR). Uploaded in parts, so a big video gets past upload limits in front of
+// the server. `publicToken` lets Instagram fetch it while it is being posted (Instagram only takes media from a public address).
+model SocialMedia {
+  id                String      @id @default(uuid()) @db.Char(36)
+  postId            String?     @db.Char(36)
+  position          Int         @default(0)
+  kind              String      @db.VarChar(8) // IMAGE, VIDEO
+  filename          String      @db.VarChar(191)
+  contentType       String      @db.VarChar(64)
+  size              Int
+  received          Int         @default(0)
+  publicToken       String      @unique @db.Char(64)
+  uploadedByDiscord BigInt
+  createdAt         DateTime    @default(now())
+  post              SocialPost? @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([postId])
+  @@index([createdAt])
+}
+
+/// An incident on the public status page (utils/status/incidents.ts): what went wrong, how bad it is, and where it has got to. Posted by
+/// platform staff from Platform > Status; each change is a StatusIncidentUpdate, and subscribers are told about each one.
+model StatusIncident {
+  id         String                 @id @default(uuid()) @db.Char(36)
+  title      String                 @db.VarChar(160)
+  /// minor | major
+  impact     String                 @db.VarChar(16)
+  /// investigating | identified | monitoring | resolved: the latest update's.
+  status     String                 @db.VarChar(16)
+  createdAt  DateTime               @default(now())
+  resolvedAt DateTime?
+  updates    StatusIncidentUpdate[]
+
+  @@index([createdAt])
+}
+
+model StatusIncidentUpdate {
+  id               String         @id @default(uuid()) @db.Char(36)
+  incidentId       String         @db.Char(36)
+  status           String         @db.VarChar(16)
+  message          String         @db.Text
+  /// The staff member who posted it. Shown only in the platform portal, never on the public page.
+  authorDiscordId  BigInt
+  authorName       String         @db.VarChar(100)
+  /// How many subscribers were emailed, and whether it went to the Discord channel. Null until it has been sent.
+  emailed          Int?
+  postedToDiscord  Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  incident         StatusIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId, createdAt])
+}
+
+/// Someone who asked to be emailed about incidents, from the status page. Only told once they confirm. `token` is in the links in every
+/// email they get (confirm, unsubscribe); it can do nothing but confirm or remove this one subscription.
+model StatusSubscriber {
+  id          String    @id @default(uuid()) @db.Char(36)
+  email       String    @unique @db.VarChar(190)
+  token       String    @unique @db.VarChar(64)
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+/// Something on the public roadmap (/roadmap, utils/roadmap/rules.ts): an idea we're considering, planned, being built or shipped. A
+/// suggestion from someone signed in starts as "suggested" and stays out of public view until platform staff move it on.
+model RoadmapItem {
+  id            String        @id @default(uuid()) @db.Char(36)
+  title         String        @db.VarChar(120)
+  description   String        @default("") @db.Text
+  /// suggested | considering | planned | building | shipped | declined
+  status        String        @db.VarChar(16)
+  /// What it's about ("Sessions", "Discord"), for grouping; free text.
+  area          String?       @db.VarChar(40)
+  /// The release it shipped in (PlatformRelease.key), so the roadmap links to its changelog.
+  releaseKey    String?       @db.VarChar(40)
+  shippedAt     DateTime?
+  votes         Int           @default(0)
+  suggestedById BigInt?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  voters        RoadmapVote[]
+
+  @@index([status, votes])
+}
+
+/// One person's vote for a roadmap item. One each; voting again takes it back.
+model RoadmapVote {
+  itemId    String      @db.Char(36)
+  userId    BigInt
+  createdAt DateTime    @default(now())
+  item      RoadmapItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, userId])
+  @@index([userId])
+}
+
+/// A workspace's setup shared as a code (utils/workspace/shareTemplate.ts): another workspace's admin types the code to add the same
+/// departments, roles, session roles and quotas. `data` is the template as cleanTemplate left it. Unlisted: only people given the code
+/// can use it. Revoking stops it working.
+model SharedTemplate {
+  code          String    @id @db.VarChar(10)
+  name          String    @db.VarChar(60)
+  blurb         String    @default("") @db.VarChar(200)
+  data          Json
+  sourceGroupId BigInt
+  createdById   BigInt
+  uses          Int       @default(0)
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  /// The public gallery (/templates, utils/workspace/templateGallery.ts): "none", "pending" (asked, waiting for our team), "listed" or
+  /// "rejected". Only listed ones are shown, with the blurb, category and the sharing workspace's name.
+  listing       String    @default("none") @db.VarChar(10)
+  category      String?   @db.VarChar(20)
+  listedAt      DateTime?
+
+  @@index([sourceGroupId])
+  @@index([listing, uses])
+}
+
+/// Plan time given rather than bought (utils/planGrants.ts): a referral reward, matching time left on another tool, a partner, or a
+/// goodwill gesture from our team. While one is live the workspace has at least that plan; a paid subscription that's better still wins.
+model PlanGrant {
+  id               String           @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  plan             SubscriptionPlan
+  endsAt           DateTime
+  /// referral | switching | partner | staff
+  reason           String           @db.VarChar(16)
+  note             String?          @db.VarChar(300)
+  /// The platform staff member who gave it (their Discord id), or null when Rosterr gave it itself (a referral reward).
+  grantedBy        BigInt?
+  createdAt        DateTime         @default(now())
+  revokedAt        DateTime?
+
+  @@index([workspaceGroupId, endsAt])
+}
+
+/// A workspace's referral link code (rosterr.cc/r/<code>, utils/referrals.ts). Made the first time an admin opens it.
+model ReferralCode {
+  code             String   @id @db.VarChar(10)
+  workspaceGroupId BigInt   @unique
+  createdAt        DateTime @default(now())
+}
+
+/// A workspace made by someone who came through another workspace's referral link. The referrer is rewarded once, when the new
+/// workspace first pays (utils/referrals.ts).
+model Referral {
+  referredGroupId BigInt    @id
+  referrerGroupId BigInt
+  code            String    @db.VarChar(10)
+  createdAt       DateTime  @default(now())
+  rewardedAt      DateTime?
+  /// "grant" (a month of Pro as plan time) or "credit" (taken off the referrer's next Stripe bill)
+  reward          String?   @db.VarChar(10)
+
+  @@index([referrerGroupId, rewardedAt])
+}
+
+/// A training quiz (utils/quizzes): multiple-choice questions staff answer, with a pass mark. Made by people with manage_quizzes.
+model Quiz {
+  id               String        @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  title            String        @db.VarChar(100)
+  description      String        @default("") @db.VarChar(500)
+  /// [{ id, text, options: string[], correct: index }] (utils/quizzes/rules.ts). The correct answers never leave the server for staff.
+  questions        Json
+  /// Percent of questions right to pass.
+  passMark         Int           @default(80)
+  /// Minutes someone waits after a failed attempt before trying again. 0: straight away.
+  retakeMinutes    Int           @default(60)
+  published        Boolean       @default(false)
+  createdById      BigInt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  archivedAt       DateTime?
+  attempts         QuizAttempt[]
+
+  @@index([workspaceGroupId, archivedAt])
+}
+
+model QuizAttempt {
+  id               String   @id @default(uuid()) @db.Char(36)
+  quizId           String   @db.Char(36)
+  workspaceGroupId BigInt
+  userId           BigInt
+  /// { questionId: chosen option index }
+  answers          Json
+  correct          Int
+  total            Int
+  percent          Int
+  passed           Boolean
+  createdAt        DateTime @default(now())
+  quiz             Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([quizId, userId, createdAt])
+  @@index([workspaceGroupId, userId])
+}
+
+/// A training course (utils/courses): docs to read and quizzes to pass, in order. Made by people with manage_quizzes.
+model Course {
+  id               String         @id @default(uuid()) @db.Char(36)
+  workspaceGroupId BigInt
+  title            String         @db.VarChar(100)
+  description      String         @default("") @db.VarChar(500)
+  /// [{ kind: "doc" | "quiz", id }] in order (utils/courses/rules.ts).
+  steps            Json
+  published        Boolean        @default(false)
+  createdById      BigInt
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  archivedAt       DateTime?
+  progress         CourseProgress[]
+
+  @@index([workspaceGroupId, archivedAt])
+}
+
+/// One person's progress through a course: the docs they've marked read (quizzes count once passed), and when they finished.
+model CourseProgress {
+  courseId    String    @db.Char(36)
+  userId      BigInt
+  docsRead    Json      @default("[]")
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, userId])
+  @@index([userId])
+}

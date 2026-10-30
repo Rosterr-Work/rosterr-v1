@@ -1,0 +1,14 @@
+<svg width="150" height="150" viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rosterr's placeholder for a group without a logo: a Night tile with three members, the middle one in Signal. -->
+  <rect width="150" height="150" rx="33" fill="#0E1A2B"/>
+  <g fill="#F6F4EF" opacity="0.55">
+    <circle cx="43" cy="66" r="11"/>
+    <path d="M23 108c0-11 9-20 20-20 4.5 0 8.6 1.5 11.9 4A35 35 0 0 0 44 110H23z"/>
+    <circle cx="107" cy="66" r="11"/>
+    <path d="M127 108c0-11-9-20-20-20-4.5 0-8.6 1.5-11.9 4A35 35 0 0 1 106 110h21z"/>
+  </g>
+  <g fill="#FF5A36">
+    <circle cx="75" cy="56" r="16"/>
+    <path d="M46 108c0-16 13-29 29-29s29 13 29 29v4H46z"/>
+  </g>
+</svg>

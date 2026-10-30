@@ -1,0 +1,48 @@
+services:
+  app:
+    restart: "unless-stopped"
+    tty: true
+    build: "."
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRO_PRICE_ID: ${STRIPE_PRO_PRICE_ID:-}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+      DATABASE_URL: ${DATABASE_URL:-mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}}
+    depends_on:
+      db: # Disable this if you are using an external MySQL database
+        condition: service_healthy
+    ports:
+      # Only this machine can reach it. Put a reverse proxy (Cloudflare, nginx, Caddy) in front for the public, which also supplies the
+      # visitor's address that the rate limits read (docs/vpn-block.md). Change 127.0.0.1 only if the proxy is on another machine.
+      - "127.0.0.1:3000:3000" # To use another port, change the first 3000.
+
+  # Comment out everything below this point if you are using an external MySQL database
+  db:
+    image: "mysql:8.0"
+    healthcheck:
+      test: mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports:
+      # Only this machine: the database should never be open to the internet. Connect from the app container as `db:3306`.
+      - 127.0.0.1:${MYSQL_PORT:-3306}:3306
+    volumes:
+      - db:/var/lib/mysql
+
+volumes:
+  db:
+    driver: local
